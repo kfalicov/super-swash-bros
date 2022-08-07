@@ -11,6 +11,7 @@ class Loader extends Scene {
       "/assets/entity/player.json"
     );
     this.load.image("box", "/assets/box.png");
+    this.load.image("shadow", "/assets/shadow.png");
   }
   create() {
     let runAnim = this.anims.create({
