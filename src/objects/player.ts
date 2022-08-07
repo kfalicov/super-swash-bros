@@ -115,7 +115,6 @@ class Pirate extends Phaser.GameObjects.GameObject {
     const dropped = this.stack.children
       .entries[0] as Phaser.Physics.Arcade.Image;
     this.stack.remove(dropped);
-    dropped.body.checkCollision.none = false;
     dropped.body.velocity.x = this.sprite.flipX ? -80 : 80;
     this.scene.tweens.add({
       targets: dropped,
@@ -128,6 +127,7 @@ class Pirate extends Phaser.GameObjects.GameObject {
           ease: "Bounce.easeOut",
         },
       },
+      onComplete: () => (dropped.body.checkCollision.none = false),
     });
     return dropped;
   }

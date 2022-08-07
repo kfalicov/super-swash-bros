@@ -26,8 +26,23 @@ class World extends Scene {
     this.interactionHitboxes = this.physics.add.staticGroup();
     this.pickuppables = this.physics.add.group({
       dragX: 200,
+      dragY: 200,
       allowDrag: true,
     });
+    this.physics.add.collider(
+      this.pickuppables,
+      this.pickuppables,
+      ({ body: a }, { body: b }) => {
+        let maxX = a.halfWidth + b.halfWidth;
+        let maxY = a.halfHeight + b.halfHeight;
+        let x = Math.min(20, (5 * maxX) / (a.center.x - b.center.x));
+        let y = Math.min(20, (5 * maxY) / (a.center.y - b.center.y));
+        b.velocity.x = -x;
+        b.velocity.y = -y;
+        a.velocity.x = x;
+        a.velocity.y = y;
+      }
+    );
 
     for (let i = 0; i < 4; i++) {
       let box = this.add.image(20 + 20 * i, 20 + 20 * i, "box");
