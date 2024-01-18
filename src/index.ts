@@ -18,7 +18,7 @@ const config = {
     default: "arcade",
     arcade: {
       fps: 60,
-      debug: true,
+      // debug: true,
     },
   },
   seed: ["test"],

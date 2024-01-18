@@ -96,6 +96,7 @@ class Loader extends Scene {
     });
 
     this.scene.manager.scenes[1].scene.start();
+    this.scene.run("Sailing");
   }
 }
 
