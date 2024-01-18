@@ -12,6 +12,25 @@ class Loader extends Scene {
     );
     this.load.image("box", "/assets/box.png");
     this.load.image("shadow", "/assets/shadow.png");
+
+    this.load.spritesheet("scroll", "/assets/scroll.png", {
+      frameWidth: 96,
+      frameHeight: 32,
+    });
+
+    this.load.image("parchment", "/assets/modal.png");
+    this.load.spritesheet("menu_ship", "/assets/menu ship.png", {
+      frameWidth: 48,
+      frameHeight: 48,
+    });
+    this.load.spritesheet("menu_wheel", "/assets/menu wheel.png", {
+      frameWidth: 48,
+      frameHeight: 48,
+    });
+    this.load.spritesheet("menu_items", "/assets/menu items.png", {
+      frameWidth: 48,
+      frameHeight: 32,
+    });
   }
   create() {
     let runAnim = this.anims.create({
@@ -55,7 +74,22 @@ class Loader extends Scene {
       }),
       frameRate: 24,
     });
-    // console.log(nut_runAnim);
+
+    /**
+     * menu animations
+     */
+    this.anims.create({ key: "unfurl", frames: "scroll" });
+    this.anims.create({
+      key: "menu_ship_sail",
+      frames: "menu_ship",
+      frameRate: 12,
+    });
+    this.anims.create({
+      key: "menu_wheel_spin",
+      frames: "menu_wheel",
+      frameRate: 12,
+    });
+
     this.scene.manager.scenes[1].scene.start();
   }
 }

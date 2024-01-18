@@ -35,12 +35,18 @@ class World extends Scene {
       ({ body: a }, { body: b }) => {
         let maxX = a.halfWidth + b.halfWidth;
         let maxY = a.halfHeight + b.halfHeight;
-        let x = Math.min(20, (5 * maxX) / (a.center.x - b.center.x));
-        let y = Math.min(20, (5 * maxY) / (a.center.y - b.center.y));
-        b.velocity.x = -x;
-        b.velocity.y = -y;
+        let distX = Math.abs(Math.round(a.center.x - b.center.x)) || 1;
+        let distY = Math.abs(Math.round(a.center.y - b.center.y)) || 1;
+        let x =
+          Math.min(50, (16 * maxX) / distX) *
+          Math.sign(a.center.x - b.center.x || 1);
+        let y =
+          Math.min(50, (16 * maxY) / distY) *
+          Math.sign(a.center.y - b.center.y || 1);
         a.velocity.x = x;
         a.velocity.y = y;
+        b.velocity.x = -x;
+        b.velocity.y = -y;
       }
     );
 

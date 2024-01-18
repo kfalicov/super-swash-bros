@@ -55,6 +55,7 @@ class Pirate extends Phaser.GameObjects.GameObject {
 
     this.squash = scene.tweens.add({
       targets: sprite,
+      persist: true,
       props: {
         scaleX: {
           getActive: () => 1.25,
@@ -115,7 +116,7 @@ class Pirate extends Phaser.GameObjects.GameObject {
     const dropped = this.stack.children
       .entries[0] as Phaser.Physics.Arcade.Image;
     this.stack.remove(dropped);
-    dropped.body.velocity.x = this.sprite.flipX ? -80 : 80;
+    if (dropped.body) dropped.body.velocity.x = this.sprite.flipX ? -80 : 80;
     this.scene.tweens.add({
       targets: dropped,
       props: {
@@ -127,7 +128,9 @@ class Pirate extends Phaser.GameObjects.GameObject {
           ease: "Bounce.easeOut",
         },
       },
-      onComplete: () => (dropped.body.checkCollision.none = false),
+      onComplete: () => {
+        if (dropped.body) dropped.body.checkCollision.none = false;
+      },
     });
     return dropped;
   }

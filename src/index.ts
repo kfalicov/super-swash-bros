@@ -5,8 +5,8 @@ import { Loader, World, Menu } from "./scenes";
 const config = {
   type: WEBGL,
   parent: "gamewrapper",
-  width: 320, //(320+80)*gameScale,
-  height: 240, //(240+80)*gameScale,
+  width: 240, //(320+80)*gameScale,
+  height: 160, //(240+80)*gameScale,
   scale: {
     zoom: Scale.MAX_ZOOM,
   },
@@ -23,8 +23,12 @@ const config = {
   },
   seed: ["test"],
   //transparent: true,
-  scene: [Loader, World],
+  scene: [Loader, Menu, World],
   //scene: [Loader, Menu, World, Map]
+  /**
+   * whether to show debug hitboxes for inputs
+   */
+  debug: false,
 };
 
 window.addEventListener(
