@@ -32,6 +32,7 @@ class Loader extends Scene {
       frameHeight: 32,
     });
 
+    this.load.image("wake", "/assets/trail.png");
     this.load.spritesheet("tiny_ship", "/assets/tiny_boat.png", {
       frameWidth: 6,
       frameHeight: 12,
@@ -96,7 +97,7 @@ class Loader extends Scene {
     });
 
     this.scene.manager.scenes[1].scene.start();
-    this.scene.run("Sailing");
+    // this.scene.run("Sailing");
   }
 }
 

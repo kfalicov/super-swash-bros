@@ -73,10 +73,16 @@ class World extends Scene {
     );
 
     let wheel = this.physics.add.image(200, 80, "menu_wheel");
-    this.physics.add.overlap(this.interactionHitboxes, wheel, () => {
-      this.scene.run("Sailing");
-      this.player.setPaused(true);
-    });
+    this.physics.add.overlap(
+      this.interactionHitboxes,
+      wheel,
+      () => {
+        console.log("wheel interacted");
+        this.player.setPaused(true);
+        this.scene.run("Sailing");
+      },
+      () => !this.scene.isActive("Sailing")
+    );
   }
   update() {
     const { left, right, up, down, punch, pickup, drop } = this.keys;
