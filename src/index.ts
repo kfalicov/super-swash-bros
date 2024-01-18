@@ -1,6 +1,6 @@
 import { Game, WEBGL, Scale } from "phaser";
 
-import { Loader, World, Menu } from "./scenes";
+import { Loader, World, Menu, Sailing } from "./scenes";
 
 const config = {
   type: WEBGL,
@@ -23,7 +23,7 @@ const config = {
   },
   seed: ["test"],
   //transparent: true,
-  scene: [Loader, Menu, World],
+  scene: [Loader, Menu, World, Sailing],
   //scene: [Loader, Menu, World, Map]
   /**
    * whether to show debug hitboxes for inputs

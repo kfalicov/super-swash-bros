@@ -71,6 +71,12 @@ class World extends Scene {
         player.stack.add(b);
       }
     );
+
+    let wheel = this.physics.add.image(200, 80, "menu_wheel");
+    this.physics.add.overlap(this.interactionHitboxes, wheel, () => {
+      this.scene.run("Sailing");
+      this.player.setPaused(true);
+    });
   }
   update() {
     const { left, right, up, down, punch, pickup, drop } = this.keys;
@@ -83,26 +89,28 @@ class World extends Scene {
       yacc = ((up.isDown ? -1 : 0) + (down.isDown ? 1 : 0)) * 300;
     }
 
-    if (punch.isDown) {
-      if (this.player.canPunch && this.player.stack.getLength() === 0) {
-        xacc = yacc = 0;
-        this.player.canPunch = false;
-        //should let the animation play in its entirety
-        this.player.interruptable = false;
-        this.player.sprite.play("player_punch", true);
-      }
-    } else this.player.canPunch = true;
+    if (!this.player.paused) {
+      if (punch.isDown) {
+        if (this.player.canPunch && this.player.stack.getLength() === 0) {
+          xacc = yacc = 0;
+          this.player.canPunch = false;
+          //should let the animation play in its entirety
+          this.player.interruptable = false;
+          this.player.sprite.play("player_punch", true);
+        }
+      } else this.player.canPunch = true;
 
-    if (pickup.isDown) {
-      this.interactionHitboxes.add(this.player.pickup());
-    } else if (drop.isDown) {
-      if (this.player.canInteract && this.player.stack.getLength() > 0) {
-        this.player.canInteract = false;
-        this.player.drop();
-      }
-    } else this.player.canInteract = true;
+      if (pickup.isDown) {
+        this.interactionHitboxes.add(this.player.pickup());
+      } else if (drop.isDown) {
+        if (this.player.canInteract && this.player.stack.getLength() > 0) {
+          this.player.canInteract = false;
+          this.player.drop();
+        }
+      } else this.player.canInteract = true;
 
-    this.player.body.setAcceleration(xacc, yacc);
+      this.player.body.setAcceleration(xacc, yacc);
+    }
   }
 }
 

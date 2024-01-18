@@ -31,6 +31,11 @@ class Loader extends Scene {
       frameWidth: 48,
       frameHeight: 32,
     });
+
+    this.load.spritesheet("tiny_ship", "/assets/tiny_boat.png", {
+      frameWidth: 6,
+      frameHeight: 12,
+    });
   }
   create() {
     let runAnim = this.anims.create({

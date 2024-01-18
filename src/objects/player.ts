@@ -4,6 +4,7 @@ class Pirate extends Phaser.GameObjects.GameObject {
   squash: Phaser.Tweens.Tween;
   stack: Phaser.GameObjects.Group;
   interruptable = true;
+  paused = false;
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, "pirate");
     let shadow = scene.physics.add.image(x, y, "shadow");
@@ -74,9 +75,11 @@ class Pirate extends Phaser.GameObjects.GameObject {
 
     sprite.on("animationcomplete-player_punch", () => {
       this.interruptable = true;
+      this.sprite.setFrame(stack.getLength() === 0 ? 0 : "player_4");
     });
     sprite.on("animationcomplete-player_pickup", () => {
       this.interruptable = true;
+      this.sprite.setFrame(stack.getLength() === 0 ? 0 : "player_4");
     });
     sprite.on(
       "animationupdate",
@@ -133,6 +136,11 @@ class Pirate extends Phaser.GameObjects.GameObject {
       },
     });
     return dropped;
+  }
+
+  setPaused(paused = true) {
+    this.paused = paused;
+    this.body.setEnable(!paused);
   }
 }
 
