@@ -1,15 +1,39 @@
 import { Scene } from 'phaser';
-import { Client } from 'colyseus.js';
+import { Client, Room } from 'colyseus.js';
+import { LobbyRoomState } from '../../../matchmaking-master/src/rooms/schema/MyRoomState';
 
 const client = new Client('ws://localhost:2567');
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
 class Lobby extends Scene {
+  players = {};
+  room: Room<LobbyRoomState>;
   constructor() {
     super('Lobby');
   }
   preload() {}
+
+  /**
+   * wires up the room by setting up the listeners for room events
+   */
+  linkRoom(room: Room<LobbyRoomState>) {
+    this.room = room;
+    this.players = Array.from(room.state.players.values()).reduce((acc, p) => {
+      acc[p.p] = p;
+      return acc;
+    }, {});
+    room.state.players.onAdd((player, p) => {
+      this.players[p] = player;
+      player.listen('c', (value) => {
+        this.players[p].c = value;
+      });
+    }, false);
+    room.state.players.onRemove((player, p) => {
+      delete this.players[p];
+    });
+  }
+
   create() {
     this.cameras.main.setBackgroundColor('#ffffff');
 
@@ -46,39 +70,49 @@ class Lobby extends Scene {
     go.on('pointerdown', () => {
       join.setVisible(false).disableInteractive();
       go.setVisible(false).disableInteractive();
-      client.joinById<any>(input.value.toUpperCase()).then((room) => {
-        console.log(room.sessionId, 'joined', room.id);
-        room.onMessage('p', (type) => {
-          console.log(type);
-        });
-        room.state.players.onAdd((player, key) => {
-          console.log(`${key} is player ${player.p + 1}`);
-        });
-        host.setText(room.id);
-      });
+      client
+        .joinById<any>(input.value.toUpperCase())
+        .then(this.linkRoom.bind(this));
     });
 
     host.once('pointerdown', () => {
       join.setVisible(false).disableInteractive();
       client
-        .joinOrCreate<any>('lobby', { private: true })
-        .then((room) => {
-          console.log(room.sessionId, 'joined', room.id);
-          room.onMessage('p', (type) => {
-            console.log(type);
-          });
-          room.state.players.onAdd((player, key) => {
-            console.log(`${key} is player ${player.p + 1}`);
-          });
-          host.setText(room.id);
-        })
+        .create<any>('lobby', { private: true })
+        .then(this.linkRoom.bind(this))
         .catch((e) => {
           console.log('JOIN ERROR', e);
         });
     });
+    this.hostText = host;
+
+    /**
+     * TODO have the active player select a character
+     */
+    this.input.on('pointerdown', () => {
+      const player = Object.values(this.players).find(
+        (player) => player.sessionId === this.room.sessionId
+      );
+      console.log('clicked', player);
+      this.room?.send('charselect', {
+        p: player.p,
+        c: Math.floor(Math.random() * 10),
+      });
+    });
+
+    this.slots = [0, 1, 2, 3].map((p) =>
+      this.add.text(70 + 25 * p, 140, `${p}`, { color: 'red' })
+    );
     // this.scene.manager.switch(this.scene.key, "World");
   }
-  update() {}
+  update() {
+    if (this.room) {
+      this.hostText.setText(this.room.id);
+    }
+    this.slots.forEach((slot, index) =>
+      slot.setText(this.players[index]?.c ?? '_')
+    );
+  }
 }
 
 export { Lobby };

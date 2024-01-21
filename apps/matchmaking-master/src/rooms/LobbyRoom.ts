@@ -36,29 +36,41 @@ class LobbyRoom extends Room<LobbyRoomState> {
     this.setState(new LobbyRoomState());
     this.setPrivate(options.private || true);
 
-    this.onMessage('type', (client, message) => {
-      //
-      // handle "type" message
-      //
+    this.onMessage('charselect', (client, message) => {
+      const player = this.state.players.get(`${message.p}`);
+      if (!player) return;
+      // console.log(client, player);
+      /**
+       * prevent any client from changing someone's character
+       */
+      if (player.sessionId === client.sessionId) {
+        player.c = message.c;
+      }
     });
   }
 
   onJoin(client: Client, options: any) {
-    const players = Array.from(this.state.players.entries());
+    const players = this.state.playersArray;
     const availableSlot = players.reduce<{ [key: number]: boolean }>(
-      (acc, [id, player]) => {
+      (acc, player) => {
         acc[player.p] = false;
         return acc;
       },
       { 0: true, 1: true, 2: true, 3: true }
     );
     const slot = [0, 1, 2, 3].find((p) => availableSlot[p]);
-    this.state.players.set(client.sessionId, new Player(slot));
-    client.send('p', slot);
+    if (slot === undefined) throw 'No room in the lobby!';
+    this.state.players.set(`${slot}`, new Player(slot, client.sessionId));
   }
 
   onLeave(client: Client, consented: boolean) {
-    console.log(client.sessionId, 'left!');
+    console.log(client.id, client.sessionId, 'left');
+    const playersOfClient = Array.from(this.state.players.values()).filter(
+      (p) => p.sessionId === client.sessionId
+    );
+    for (const player of playersOfClient) {
+      this.state.players.delete(`${player.p}`);
+    }
   }
 
   onDispose() {
