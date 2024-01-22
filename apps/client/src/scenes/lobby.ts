@@ -55,7 +55,9 @@ class Lobby extends Scene {
     document.body.appendChild(input);
 
     const host = this.add
-      .text(100, 40, 'host', { color: '#000000' })
+      .text(100, 40, 'HOST', {
+        color: '#000000',
+      })
       .setOrigin(0.5)
       .setInteractive();
     const join = this.add
@@ -101,7 +103,12 @@ class Lobby extends Scene {
     });
 
     this.slots = [0, 1, 2, 3].map((p) =>
-      this.add.text(70 + 25 * p, 140, `${p}`, { color: 'red' })
+      this.add
+        .text(40 + 40 * p, 140, `${p}`, {
+          color: 'red',
+          fontFamily: 'font1',
+        })
+        .setResolution(16)
     );
     // this.scene.manager.switch(this.scene.key, "World");
   }
@@ -110,7 +117,7 @@ class Lobby extends Scene {
       this.hostText.setText(this.room.id);
     }
     this.slots.forEach((slot, index) =>
-      slot.setText(this.players[index]?.c ?? '_')
+      slot.setText(this.players[index]?.c ?? 'NONE')
     );
   }
 }

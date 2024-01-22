@@ -7,8 +7,21 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <style media="screen" type="text/css">
+      @font-face {
+        font-family: font1;
+        src: url('assets/map font.woff2');
+        font-weight: 400;
+        font-weight: normal;
+      }
+      body {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+    </style>
   </head>
   <body style="margin: 0">
+    <div style="font-family: font1; visibility: hidden">.</div>
     <div
       id="gamewrapper"
       style="

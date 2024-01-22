@@ -12,6 +12,7 @@ const config: Types.Core.GameConfig = {
   },
   render: {
     pixelArt: true,
+    antialias: false,
   },
   title: 'pirate proto',
   physics: {
