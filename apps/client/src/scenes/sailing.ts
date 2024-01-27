@@ -3,40 +3,34 @@ import { Scene, Math as PhaserMath, Geom, GameObjects, Physics } from 'phaser';
 type WakeCoord = Phaser.Types.Math.Vector2Like & {
   vx: number;
   vy: number;
-  speedFrac: number;
+  speed: number;
+  maxSpeed: number;
   rad: number;
 };
+const c = 0.08;
 const computeWake = (coords: WakeCoord[]) => {
   const port: Phaser.Types.Math.Vector2Like[] = [];
   const starboard: Phaser.Types.Math.Vector2Like[] = [];
   let alphas: number[] = [];
-  for (let i = 0; i < coords.length; i++) {
-    const { x, y, vx, vy, rad, speedFrac } = coords[i];
-    const v = { x: vx, y: vy };
-    const { x: portVx, y: portVy } = PhaserMath.Rotate({ ...v }, -1.57);
-    const { x: starVx, y: starVy } = PhaserMath.Rotate({ ...v }, 1.57);
+  for (let i = 1; i < coords.length; i++) {
     /**
-     * controls offset of where the wake starts
+     * radius of wake (increases with age)
+     * 2 is min radius
      */
-    const { x: portOffX, y: portOffY } = PhaserMath.Rotate(
-      { x: 4, y: 0 },
-      -0.3 + rad
-    );
-    const { x: starOffX, y: starOffY } = PhaserMath.Rotate(
-      { x: 4, y: 0 },
-      0.3 + rad
-    );
-    const spread =
-      speedFrac * PhaserMath.Easing.Circular.Out(i / coords.length) * 0.33;
+    const r = c * i + 2;
+    const { x, y, rad, speed, maxSpeed } = coords[i];
+    const speedFrac = speed / maxSpeed;
 
-    port.push({
-      x: x + portOffX + portVx * spread,
-      y: y + portOffY + portVy * spread,
-    });
-    starboard.push({
-      x: x + starOffX + starVx * spread,
-      y: y + starOffY + starVy * spread,
-    });
+    const tanPort = Phaser.Geom.Circle.CircumferencePoint(
+      new Phaser.Geom.Circle(x, y, r),
+      rad - 1.57 - 0.2 * speedFrac
+    );
+    const tanStar = Phaser.Geom.Circle.CircumferencePoint(
+      new Phaser.Geom.Circle(x, y, r),
+      rad + 1.57 + 0.2 * speedFrac
+    );
+    port.push(tanPort);
+    starboard.push(tanStar);
     alphas.push(
       speedFrac * (1 - PhaserMath.Easing.Sine.Out(i / coords.length))
     );
@@ -50,7 +44,8 @@ class Sailing extends Scene {
   center: Phaser.GameObjects.Zone;
   ship: Physics.Arcade.Image;
   keys: Record<string, Phaser.Input.Keyboard.Key>;
-  gridCells: GameObjects.Image[];
+  gridCells: GameObjects.Image[] = [];
+  wind: Phaser.GameObjects.Rope[] = [];
   constructor() {
     super('Sailing');
   }
@@ -74,7 +69,6 @@ class Sailing extends Scene {
     horizontalMarker.setVisible(false);
     verticalMarker.setVisible(false);
 
-    this.gridCells = [];
     /** make 4 grid cells- the one you are in, and 3 which position themselves where you are going */
     for (let i = -1; i < 1; i++) {
       for (let j = -1; j < 1; j++) {
@@ -115,7 +109,8 @@ class Sailing extends Scene {
       y: 32,
       vx: 0,
       vy: 0,
-      speedFrac: 0,
+      speed: 0,
+      maxSpeed: 1,
       rad: 0,
     });
 
@@ -132,7 +127,7 @@ class Sailing extends Scene {
 
     hull.body.maxAngular = 60;
     hull.body.angularDrag = 50;
-    hull.body.maxSpeed = 30;
+    hull.body.maxSpeed = 20;
 
     hull.body.setDamping(true);
     hull.body.setDrag(0.6);
@@ -144,7 +139,8 @@ class Sailing extends Scene {
         ...this.center,
         vx: this.velocity.x,
         vy: this.velocity.y,
-        speedFrac: this.speed / this.maxSpeed,
+        speed: this.speed,
+        maxSpeed: this.maxSpeed,
         rad: this.angle,
       });
       coords.pop();
@@ -154,6 +150,22 @@ class Sailing extends Scene {
       wakePort.setAlphas(alphas);
       wakeStarboard.setAlphas(alphas);
     };
+
+    /**
+     * setup wind ropes. alpha will be scrolled along the rope to make it look like it's moving
+     */
+    for (let i = 0; i < 3; i++) {
+      const windices = new Array(50)
+        .fill(1)
+        .map((_, _i) => ({ x: i * 20 + 12 - 32, y: _i * 2 - 32 - 23 }));
+      const offset = Math.floor(Math.random() * 40);
+      this.wind.push(
+        this.add
+          .rope(32, 32, 'wake', undefined, windices)
+          .setScrollFactor(0)
+          .setAlphas(new Array(50).fill(0).fill(1, offset, offset + 10))
+      );
+    }
 
     this.cameras.main.startFollow(hull, false, 0.9, 0.9);
 
@@ -231,6 +243,11 @@ class Sailing extends Scene {
       Math.sin(this.ship.rotation - 1.57) * acc
     );
     (this.ship.body as Physics.Arcade.Body).setAngularAcceleration(angularAcc);
+    this.wind.forEach((rope) => {
+      const alphas = Array.from(rope.alphas);
+      alphas.unshift(alphas.pop());
+      rope.setAngle(rope.angle + 0.2).setAlphas(alphas);
+    });
   }
 }
 
