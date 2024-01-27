@@ -7,8 +7,10 @@ const client = new Client('ws://localhost:2567');
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
 class Lobby extends Scene {
-  players = {};
+  players: Record<string, { p: number; sessionId: string; c: number }> = {};
   room: Room<LobbyRoomState>;
+  hostText: Phaser.GameObjects.Text;
+  slots: Phaser.GameObjects.Text[];
   constructor() {
     super('Lobby');
   }
@@ -73,14 +75,14 @@ class Lobby extends Scene {
       join.setVisible(false).disableInteractive();
       go.setVisible(false).disableInteractive();
       client
-        .joinById<any>(input.value.toUpperCase())
+        .joinById<unknown>(input.value.toUpperCase())
         .then(this.linkRoom.bind(this));
     });
 
     host.once('pointerdown', () => {
       join.setVisible(false).disableInteractive();
       client
-        .create<any>('lobby', { private: true })
+        .create<unknown>('lobby', { private: true })
         .then(this.linkRoom.bind(this))
         .catch((e) => {
           console.log('JOIN ERROR', e);
@@ -110,14 +112,21 @@ class Lobby extends Scene {
         })
         .setResolution(16)
     );
-    // this.scene.manager.switch(this.scene.key, "World");
+
+    const play = this.add
+      .image(220, 150, 'play')
+      .setSize(20, 10)
+      .setInteractive();
+    play.on('pointerdown', () => {
+      this.scene.manager.switch(this.scene.key, 'World');
+    });
   }
   update() {
     if (this.room) {
       this.hostText.setText(this.room.id);
     }
     this.slots.forEach((slot, index) =>
-      slot.setText(this.players[index]?.c ?? 'NONE')
+      slot.setText(`${this.players[index]?.c ?? 'NONE'}`)
     );
   }
 }
