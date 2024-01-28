@@ -1,8 +1,7 @@
 import { Scene } from 'phaser';
-import { Client, Room } from 'colyseus.js';
+import { Room } from 'colyseus.js';
 import { LobbyRoomState } from '../../../matchmaking-master/src/rooms/schema/MyRoomState';
-
-const client = new Client('ws://localhost:2567');
+import { api } from '@super-swash-bros/api';
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
@@ -74,19 +73,18 @@ class Lobby extends Scene {
     go.on('pointerdown', () => {
       join.setVisible(false).disableInteractive();
       go.setVisible(false).disableInteractive();
-      client
-        .joinById<unknown>(input.value.toUpperCase())
-        .then(this.linkRoom.bind(this));
+      api.rooms.join({ params: { id: input.value.toUpperCase() } });
     });
 
     host.once('pointerdown', () => {
       join.setVisible(false).disableInteractive();
-      client
-        .create<unknown>('lobby', { private: true })
-        .then(this.linkRoom.bind(this))
-        .catch((e) => {
-          console.log('JOIN ERROR', e);
-        });
+      api.rooms.create();
+      // client
+      //   .create<unknown>('lobby', { private: true })
+      //   .then(this.linkRoom.bind(this))
+      //   .catch((e) => {
+      //     console.log('JOIN ERROR', e);
+      //   });
     });
     this.hostText = host;
 

@@ -1,0 +1,9 @@
+
+[workspace]
+resolver = '2'
+members = [
+	'apps/lobbying',
+]
+
+[profile.release]
+lto = true
