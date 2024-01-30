@@ -3,6 +3,9 @@ name = "lobbying"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "mybin"
+path = "src/bin.rs"
 
 [dependencies]
 serde = { version = "1.0.196", features = ["derive"] }
@@ -10,5 +13,7 @@ redis = "0.24.0"
 actix-web = "4"
 mime = "0.3.17"
 actix-cors = "0.7.0"
+actix-web-actors = "4.2.0"
+actix = "0.13.1"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
