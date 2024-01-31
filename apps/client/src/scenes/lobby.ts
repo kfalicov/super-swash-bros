@@ -66,6 +66,17 @@ class Lobby extends Scene {
       .setOrigin(0.5)
       .setInteractive();
     join.on('pointerdown', () => {
+      const socket = new WebSocket('ws://127.0.0.1:12345');
+      socket.addEventListener('open', () => {
+        socket.send('hello!');
+      });
+      // Listen for messages
+      socket.addEventListener('message', (event) => {
+        console.log('Message from server ', event.data);
+      });
+      socket.addEventListener('close', () => {
+        console.log('closed');
+      });
       input.focus();
       go.setVisible(true);
     });

@@ -24,9 +24,9 @@ use super::{
 #[rtype(result = "()")]
 pub struct Message {
     /// player #
-    p: u8,
+    pub p: u8,
     /// selected character
-    c: u8,
+    pub c: u8,
 }
 
 /// `PlayerSession` actor is responsible for tcp peer communications.
@@ -75,7 +75,10 @@ impl Actor for PlayerSession {
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
         // notify chat server
-        self.addr.do_send(server::Disconnect { id: self.id });
+        self.addr.do_send(server::Disconnect {
+            id: self.id,
+            room: self.room.clone(),
+        });
         Running::Stop
     }
 }
@@ -124,7 +127,7 @@ impl Handler<Message> for PlayerSession {
 
     fn handle(&mut self, msg: Message, _: &mut Context<Self>) {
         // send message to peer
-        self.framed.write(ChatResponse::Message(msg.0));
+        self.framed.write(ChatResponse::Message(msg.p.to_string()));
     }
 }
 
@@ -154,7 +157,10 @@ impl PlayerSession {
                 println!("Client heartbeat failed, disconnecting!");
 
                 // notify chat server
-                act.addr.do_send(server::Disconnect { id: act.id });
+                act.addr.do_send(server::Disconnect {
+                    id: act.id,
+                    room: act.room.clone(),
+                });
 
                 // stop actor
                 ctx.stop();
@@ -168,9 +174,11 @@ impl PlayerSession {
 
 /// Define TCP server that will accept incoming TCP connection and create
 /// chat actors.
-pub fn tcp_server(_s: &str, server: Addr<RoomServer>) {
+pub fn tcp_server(s: &str, server: Addr<RoomServer>) {
     // Create server listener
-    let addr = net::SocketAddr::from_str("127.0.0.1:12345").unwrap();
+    let addr = net::SocketAddr::from_str(s).unwrap();
+
+    println!("Listening on {addr}");
 
     spawn(async move {
         let listener = TcpListener::bind(&addr).await.unwrap();

@@ -13,8 +13,6 @@ use serde_json as json;
 #[rtype(result = "()")]
 #[serde(tag = "cmd", content = "data")]
 pub enum ChatRequest {
-    /// List rooms
-    List,
     /// Join rooms
     Join(String),
     /// Send message

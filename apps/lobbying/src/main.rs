@@ -1,3 +1,4 @@
+use actix::Actor;
 use actix_cors::Cors;
 use actix_web::{get, App, HttpResponse, HttpServer, Responder};
 

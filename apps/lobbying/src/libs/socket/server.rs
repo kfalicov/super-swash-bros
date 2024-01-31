@@ -23,6 +23,7 @@ pub struct Connect {
 #[rtype(result = "()")]
 pub struct Disconnect {
     pub id: usize,
+    pub room: String,
 }
 
 /// Send message to specific room
@@ -37,16 +38,9 @@ pub struct Message {
     pub room: String,
 }
 
-/// List of available rooms
-pub struct ListRooms;
-
-impl actix::Message for ListRooms {
-    type Result = Vec<String>;
-}
-
 /// Join room by provided code
 #[derive(Message)]
-#[rtype(result = "()")]
+#[rtype(usize)]
 pub struct Join {
     /// client session address
     pub addr: Recipient<session::Message>,
@@ -74,10 +68,10 @@ impl RoomServer {
     /// Send message to all users in the room
     fn send_message(&self, room: &str, message: &str, skip_id: usize) {
         if let Some(sessions) = self.rooms.get(room) {
-            for id in sessions {
+            for id in sessions.keys() {
                 if *id != skip_id {
-                    if let Some(addr) = self.sessions.get(id) {
-                        addr.do_send(session::Message(message.to_owned()));
+                    if let Some(addr) = sessions.get(id) {
+                        addr.do_send(session::Message { p: 0, c: 0 });
                     }
                 }
             }
@@ -92,6 +86,23 @@ impl Actor for RoomServer {
     type Context = Context<Self>;
 }
 
+/// Handler for Connect message.
+/// Register new session and assign unique id to this session
+impl Handler<Connect> for RoomServer {
+    type Result = usize;
+
+    fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
+        println!("Someone joined");
+
+        // register session with random id
+        let id = self.rng.gen::<usize>();
+        println!("{id}");
+
+        // send id back
+        id
+    }
+}
+
 /// Handler for Disconnect message.
 impl Handler<Disconnect> for RoomServer {
     type Result = ();
@@ -99,12 +110,8 @@ impl Handler<Disconnect> for RoomServer {
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
         println!("Someone disconnected");
 
-        let mut rooms: Vec<String> = Vec::new();
-
-        // send message to other users
-        for room in rooms {
-            self.send_message(&room, "Someone disconnected", 0);
-        }
+        self.rooms.get_mut(&msg.room).unwrap().remove(&msg.id);
+        // TODO send message to other users
     }
 }
 
@@ -119,15 +126,13 @@ impl Handler<Message> for RoomServer {
 
 /// Join room, send join message to new room
 impl Handler<Join> for RoomServer {
-    type Result = ();
+    type Result = usize;
 
-    fn handle(&mut self, msg: Join, _: &mut Context<Self>) {
+    fn handle(&mut self, msg: Join, _: &mut Context<Self>) -> Self::Result {
         let Join { addr, code } = msg;
 
         // register session with random id
         let id = self.rng.gen::<usize>();
-
-        let mut rooms = Vec::new();
 
         if self.rooms.get_mut(&code).is_none() {
             //TODO throw an error- joined invalid room
