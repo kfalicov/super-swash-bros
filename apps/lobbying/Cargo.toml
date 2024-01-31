@@ -11,6 +11,8 @@ actix-web = "4"
 actix-web-actors = "4.2.0"
 bson = { version = "2", features = ["chrono-0_4"] } # Needed for using chrono datetime in doc
 byteorder = "1.5.0"
+env_logger = "0.11.1"
+log = "0.4.20"
 mime = "0.3.17"
 mongodb = "2.1"
 rand = "0.8.5"

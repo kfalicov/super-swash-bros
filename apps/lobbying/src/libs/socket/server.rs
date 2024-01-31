@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet};
 use actix::prelude::*;
 use rand::{self, rngs::ThreadRng, Rng};
 
-use super::session;
+use super::session::{self, Message, PlayerChoice};
 
 /// Message for chat server communications
 
@@ -23,18 +23,6 @@ pub struct Connect {
 #[rtype(result = "()")]
 pub struct Disconnect {
     pub id: usize,
-    pub room: String,
-}
-
-/// Send message to specific room
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct Message {
-    /// Id of the client session
-    pub id: usize,
-    /// Peer message
-    pub msg: String,
-    /// Room name
     pub room: String,
 }
 
@@ -66,12 +54,12 @@ impl Default for RoomServer {
 
 impl RoomServer {
     /// Send message to all users in the room
-    fn send_message(&self, room: &str, message: &str, skip_id: usize) {
+    fn send_message(&self, room: &str, message: Message, skip_id: usize) {
         if let Some(sessions) = self.rooms.get(room) {
             for id in sessions.keys() {
                 if *id != skip_id {
                     if let Some(addr) = sessions.get(id) {
-                        addr.do_send(session::Message { p: 0, c: 0 });
+                        addr.do_send(message);
                     }
                 }
             }
@@ -110,8 +98,10 @@ impl Handler<Disconnect> for RoomServer {
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
         println!("Someone disconnected");
 
-        self.rooms.get_mut(&msg.room).unwrap().remove(&msg.id);
-        // TODO send message to other users
+        if let Some(room) = self.rooms.get_mut(&msg.room) {
+            room.remove(&msg.id);
+            // TODO send message to other users
+        }
     }
 }
 
@@ -120,7 +110,7 @@ impl Handler<Message> for RoomServer {
     type Result = ();
 
     fn handle(&mut self, msg: Message, _: &mut Context<Self>) {
-        self.send_message(&msg.room, msg.msg.as_str(), msg.id);
+        self.send_message(&msg, msg.msg.as_str(), msg.id);
     }
 }
 
@@ -137,7 +127,7 @@ impl Handler<Join> for RoomServer {
         if self.rooms.get_mut(&code).is_none() {
             //TODO throw an error- joined invalid room
         }
-        self.send_message(&code, "Someone connected", id);
+        self.send_message(&code, Message::PlayerChoice { p: 0, c: 0 }, id);
         self.rooms.get_mut(&code).unwrap().insert(id, addr);
 
         // send id back

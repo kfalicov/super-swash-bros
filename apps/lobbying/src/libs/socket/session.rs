@@ -1,32 +1,44 @@
-//! `ClientSession` is an actor, it manages peer tcp connection and
+//! `PlayerSession` is an actor, it manages peer tcp connection and
 //! proxies commands from peer to `RoomServer`.
 
 use std::{
-    io, net,
-    str::FromStr,
+    io, str,
     time::{Duration, Instant},
 };
 
 use actix::{prelude::*, spawn};
-use tokio::{
-    io::{split, WriteHalf},
-    net::{TcpListener, TcpStream},
-};
-use tokio_util::codec::FramedRead;
+use actix_web_actors::ws;
+use serde::{Deserialize, Serialize};
 
-use super::{
-    codec::{ChatCodec, ChatRequest, ChatResponse},
-    server::{self, RoomServer},
-};
+use super::server::{self, RoomServer};
+
+/// How often heartbeat pings are sent
+const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
+
+/// How long before lack of client response causes a timeout
+const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// The message type used by this actor
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct Message {
+#[derive(Serialize, Deserialize)]
+pub struct PlayerChoice {
     /// player #
     pub p: u8,
     /// selected character
     pub c: u8,
+}
+
+/// The message type used by this actor
+#[derive(Serialize, Deserialize)]
+pub struct Join {
+    pub code: String,
+}
+
+/// Chat server sends this messages to session
+#[derive(Message)]
+#[rtype(result = "()")]
+pub enum Message {
+    PlayerChoice,
+    Join,
 }
 
 /// `PlayerSession` actor is responsible for tcp peer communications.
@@ -40,14 +52,10 @@ pub struct PlayerSession {
     hb: Instant,
     /// joined room
     room: String,
-    /// Framed wrapper
-    framed: actix::io::FramedWrite<ChatResponse, WriteHalf<TcpStream>, ChatCodec>,
 }
 
 impl Actor for PlayerSession {
-    /// For tcp communication we are going to use `FramedContext`.
-    /// It is convenient wrapper around `Framed` object from `tokio_io`
-    type Context = Context<Self>;
+    type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
         // we'll start heartbeat process on session start.
@@ -66,7 +74,10 @@ impl Actor for PlayerSession {
                 match res {
                     Ok(res) => act.id = res,
                     // something is wrong with chat server
-                    _ => ctx.stop(),
+                    _ => {
+                        ctx.stop();
+                        println!("something went wrong {}", res.unwrap_err());
+                    }
                 }
                 actix::fut::ready(())
             })
@@ -74,6 +85,7 @@ impl Actor for PlayerSession {
     }
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
+        println!("stopping session");
         // notify chat server
         self.addr.do_send(server::Disconnect {
             id: self.id,
@@ -85,111 +97,93 @@ impl Actor for PlayerSession {
 
 impl actix::io::WriteHandler<io::Error> for PlayerSession {}
 
-/// To use `Framed` we have to define Io type and Codec
-impl StreamHandler<Result<ChatRequest, io::Error>> for PlayerSession {
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PlayerSession {
     /// This is main event loop for client requests
-    fn handle(&mut self, msg: Result<ChatRequest, io::Error>, ctx: &mut Context<Self>) {
+    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
+        log::debug!("Received Message {:?}", msg);
+        /// early exit on errors, otherwise pipe through
+        let msg = match msg {
+            Err(_) => {
+                ctx.stop();
+                return;
+            }
+            Ok(msg) => msg,
+        };
         match msg {
-            Ok(ChatRequest::Join(code)) => {
-                // start heartbeat process when room is joined
-                self.hb(ctx);
-
-                // get address of client session
-                let addr = ctx.address();
-                println!("Join to room: {code}");
-                self.room = code.clone();
-                self.addr.do_send(server::Join {
-                    addr: addr.recipient(),
-                    code: code.clone(),
-                });
-                self.framed.write(ChatResponse::Joined(code));
+            ws::Message::Ping(msg) => {
+                self.hb = Instant::now();
+                ctx.pong(&msg);
             }
-            Ok(ChatRequest::Message(message)) => {
-                // send message to chat server
-                println!("Peer message: {message}");
-                self.addr.do_send(server::Message {
-                    id: self.id,
-                    msg: message,
-                    room: self.room.clone(),
-                })
+            ws::Message::Pong(_) => {
+                self.hb = Instant::now();
             }
-            // we update heartbeat time on ping from peer
-            Ok(ChatRequest::Ping) => self.hb = Instant::now(),
-            _ => ctx.stop(),
+            ws::Message::Binary(msg) => {
+                // Deserialize the binary data into a JSON object
+                let json_str = str::from_utf8(&msg).unwrap();
+                let json: Message = serde_json::from_str(json_str).unwrap();
+                match json {
+                    Message::PlayerChoice { p, c } => {}
+                    Message::Join { code } => {
+                        // get address of client session
+                        let addr = ctx.address();
+                        println!("Join to room: {code}");
+                        self.room = code.clone();
+                        self.addr.do_send(server::Join {
+                            addr: addr.recipient(),
+                            code: code.clone(),
+                        });
+                    }
+                    _ => {}
+                }
+            }
+            _ => (),
         }
     }
 }
 
-/// Handler for Message, chat server sends this message, we just send string to
-/// peer
+/// Handle messages from chat server, we simply send it to peer websocket
 impl Handler<Message> for PlayerSession {
     type Result = ();
 
-    fn handle(&mut self, msg: Message, _: &mut Context<Self>) {
-        // send message to peer
-        self.framed.write(ChatResponse::Message(msg.p.to_string()));
+    fn handle(&mut self, msg: Message, ctx: &mut Self::Context) {
+        ctx.binary(msg);
     }
 }
-
 /// Helper methods
 impl PlayerSession {
-    pub fn new(
-        addr: Addr<RoomServer>,
-        framed: actix::io::FramedWrite<ChatResponse, WriteHalf<TcpStream>, ChatCodec>,
-    ) -> PlayerSession {
+    pub fn new(addr: Addr<RoomServer>) -> PlayerSession {
         PlayerSession {
             id: 0,
             addr,
             hb: Instant::now(),
             room: "main".to_owned(),
-            framed,
         }
     }
 
     /// helper method that sends ping to client every second.
     ///
     /// also this method check heartbeats from client
-    fn hb(&self, ctx: &mut Context<Self>) {
-        ctx.run_interval(Duration::new(1, 0), |act, ctx| {
+    fn hb(&self, ctx: &mut ws::WebsocketContext<Self>) {
+        ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
             // check client heartbeats
-            if Instant::now().duration_since(act.hb) > Duration::new(10, 0) {
+            if Instant::now().duration_since(act.hb) > CLIENT_TIMEOUT {
                 // heartbeat timed out
-                println!("Client heartbeat failed, disconnecting!");
+                println!("Websocket Client heartbeat failed, disconnecting!");
 
                 // notify chat server
                 act.addr.do_send(server::Disconnect {
                     id: act.id,
-                    room: act.room.clone(),
+                    room: act.room,
                 });
 
                 // stop actor
                 ctx.stop();
+
+                // don't try to send a ping
+                return;
             }
 
-            act.framed.write(ChatResponse::Ping);
-            // if we can not send message to sink, sink is closed (disconnected)
+            ctx.ping(b"");
         });
     }
-}
-
-/// Define TCP server that will accept incoming TCP connection and create
-/// chat actors.
-pub fn tcp_server(s: &str, server: Addr<RoomServer>) {
-    // Create server listener
-    let addr = net::SocketAddr::from_str(s).unwrap();
-
-    println!("Listening on {addr}");
-
-    spawn(async move {
-        let listener = TcpListener::bind(&addr).await.unwrap();
-
-        while let Ok((stream, _)) = listener.accept().await {
-            let server = server.clone();
-            PlayerSession::create(|ctx| {
-                let (r, w) = split(stream);
-                PlayerSession::add_stream(FramedRead::new(r, ChatCodec), ctx);
-                PlayerSession::new(server, actix::io::FramedWrite::new(w, ChatCodec, ctx))
-            });
-        }
-    });
 }
