@@ -5,41 +5,54 @@
 use std::collections::{HashMap, HashSet};
 
 use actix::prelude::*;
+use actix_web_actors::ws;
 use rand::{self, rngs::ThreadRng, Rng};
 
-use super::session::{self, Message, PlayerChoice};
+use super::session::{self, Plain, PlayerChoice};
 
 /// Message for chat server communications
+#[derive(Clone, Message, Debug)]
+#[rtype(result = "()")]
+pub enum ServerAction {
+    Connect(Connect),
+    Disconnect(Disconnect),
+    RoomJoin(RoomJoin),
+    CreateRoom(CreateRoom),
+}
 
 /// New chat session is created
-#[derive(Message)]
+#[derive(Message, Clone, Debug)]
 #[rtype(usize)]
 pub struct Connect {
     pub addr: Recipient<session::Message>,
 }
 
 /// Session is disconnected
-#[derive(Message)]
+#[derive(Message, Clone, Debug)]
 #[rtype(result = "()")]
 pub struct Disconnect {
     pub id: usize,
-    pub room: String,
+    pub room: Option<String>,
 }
 
 /// Join room by provided code
-#[derive(Message)]
+#[derive(Message, Clone, Debug)]
 #[rtype(usize)]
-pub struct Join {
+pub struct RoomJoin {
     /// client session address
-    pub addr: Recipient<session::Message>,
+    pub addr: Addr<session::PlayerSession>,
     /// 4-digit room code
     pub code: String,
 }
+/// request to create a room
+#[derive(Message, Clone, Debug)]
+#[rtype(String)]
+pub struct CreateRoom {}
 
 /// `RoomServer` manages game rooms
 pub struct RoomServer {
     /// map of rooms, each with set of users
-    rooms: HashMap<String, HashMap<usize, Recipient<session::Message>>>,
+    rooms: HashMap<String, HashMap<usize, Addr<session::PlayerSession>>>,
     rng: ThreadRng,
 }
 
@@ -54,12 +67,13 @@ impl Default for RoomServer {
 
 impl RoomServer {
     /// Send message to all users in the room
-    fn send_message(&self, room: &str, message: Message, skip_id: usize) {
+    fn send_message(&self, room: &str, message: ServerAction, skip_id: usize) {
+        log::info!("Sending message to room {}", room);
         if let Some(sessions) = self.rooms.get(room) {
             for id in sessions.keys() {
                 if *id != skip_id {
                     if let Some(addr) = sessions.get(id) {
-                        addr.do_send(message);
+                        // addr.do_send("the server wants to say something to you".to_owned());
                     }
                 }
             }
@@ -98,28 +112,30 @@ impl Handler<Disconnect> for RoomServer {
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
         println!("Someone disconnected");
 
-        if let Some(room) = self.rooms.get_mut(&msg.room) {
-            room.remove(&msg.id);
-            // TODO send message to other users
+        if let Some(code) = msg.room {
+            if let Some(room) = self.rooms.get_mut(&code) {
+                room.remove(&msg.id);
+                // TODO send message to other users
+            }
         }
     }
 }
 
 /// Handler for Message message.
-impl Handler<Message> for RoomServer {
-    type Result = ();
+// impl Handler<Message> for RoomServer {
+//     type Result = ();
 
-    fn handle(&mut self, msg: Message, _: &mut Context<Self>) {
-        self.send_message(&msg, msg.msg.as_str(), msg.id);
-    }
-}
+//     fn handle(&mut self, msg: Message, _: &mut Context<Self>) {
+//         self.send_message("main", msg, 10);
+//     }
+// }
 
 /// Join room, send join message to new room
-impl Handler<Join> for RoomServer {
+impl Handler<RoomJoin> for RoomServer {
     type Result = usize;
 
-    fn handle(&mut self, msg: Join, _: &mut Context<Self>) -> Self::Result {
-        let Join { addr, code } = msg;
+    fn handle(&mut self, msg: RoomJoin, _: &mut Context<Self>) -> Self::Result {
+        let RoomJoin { addr, code } = msg;
 
         // register session with random id
         let id = self.rng.gen::<usize>();
@@ -127,10 +143,30 @@ impl Handler<Join> for RoomServer {
         if self.rooms.get_mut(&code).is_none() {
             //TODO throw an error- joined invalid room
         }
-        self.send_message(&code, Message::PlayerChoice { p: 0, c: 0 }, id);
-        self.rooms.get_mut(&code).unwrap().insert(id, addr);
+        if let Some(room) = self.rooms.get_mut(&code) {
+            //TODO broadcast to all users in the room that a new user has joined
+            for (_key, addr) in room.clone() {
+                // let message = Message::new(format!("New player joined: {}", player_name));
+                let _ = addr.do_send(Plain("yabba dabba do".to_owned()));
+            }
+            //TODO broadcast to the new user the info about the other users in the room
+
+            //insert the user into the room
+            room.insert(id, addr);
+        }
 
         // send id back
         id
+    }
+}
+
+impl Handler<CreateRoom> for RoomServer {
+    type Result = String;
+
+    fn handle(&mut self, _msg: CreateRoom, _ctx: &mut Context<Self>) -> Self::Result {
+        let code = self.rng.gen_range(1000..9999).to_string();
+        self.rooms.insert(code.clone(), HashMap::new());
+        println!("Created room: {code}");
+        code
     }
 }

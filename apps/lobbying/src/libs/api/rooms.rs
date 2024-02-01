@@ -1,4 +1,4 @@
-use actix::Actor;
+use actix::{Actor, Addr};
 use actix_web::{
     get,
     http::header::{self, ContentType},
@@ -8,13 +8,18 @@ use actix_web_actors::ws;
 use mime;
 use serde::{Deserialize, Serialize};
 
+use crate::libs::socket::server;
+
 #[derive(Serialize)]
 struct Room {
     code: String,
 }
 
 #[post("/new")]
-async fn create_room() -> impl Responder {
+async fn create_room(
+    _: web::Path<String>,
+    srv: web::Data<Addr<server::RoomServer>>,
+) -> impl Responder {
     HttpResponse::Created()
         .content_type(ContentType(mime::APPLICATION_JSON))
         .json(Room {

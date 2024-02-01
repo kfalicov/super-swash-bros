@@ -38,27 +38,34 @@ async fn main() -> std::io::Result<()> {
     // start room server actor
     let server = server::RoomServer::default().start();
 
-    let api_server = HttpServer::new(|| {
-        // TODO change allowed origin to known FE domain
-        let cors = Cors::default().allow_any_origin().send_wildcard();
+    let api_server = {
+        let server = server.clone();
+        HttpServer::new(move || {
+            // TODO change allowed origin to known FE domain
+            let cors = Cors::default().allow_any_origin().send_wildcard();
 
-        App::new()
-            .wrap(cors)
-            .service(hello)
-            .service(actix_web::web::scope("/rooms").configure(api::rooms))
-    })
-    .bind(("127.0.0.1", 8080))?
-    .run();
+            App::new()
+                .app_data(web::Data::new(server.clone()))
+                .wrap(cors)
+                .service(hello)
+                .service(actix_web::web::scope("/rooms").configure(api::rooms))
+        })
+        .bind(("127.0.0.1", 8080))?
+        .run()
+    };
 
     // Start the WebSocket server
-    let ws_server = HttpServer::new(|| {
-        App::new()
-            .app_data(web::Data::new(server.clone()))
-            .route("/", web::get().to(socket_route)) // WebSocket route
-            .wrap(Logger::default())
-    })
-    .bind(("127.0.0.1", 12345))?
-    .run();
+    let ws_server = {
+        let server = server.clone();
+        HttpServer::new(move || {
+            App::new()
+                .app_data(web::Data::new(server.clone()))
+                .route("/", web::get().to(socket_route)) // WebSocket route
+                .wrap(Logger::default())
+        })
+        .bind(("127.0.0.1", 12345))?
+        .run()
+    };
 
     // Run both servers
     tokio::try_join!(api_server, ws_server)?;

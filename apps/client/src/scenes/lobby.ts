@@ -1,5 +1,6 @@
 import { Scene } from 'phaser';
 import { Room } from 'colyseus.js';
+import { GameSocket } from '../objects/socket';
 import { LobbyRoomState } from '../../../matchmaking-master/src/rooms/schema/MyRoomState';
 import { api } from '@super-swash-bros/api';
 
@@ -10,6 +11,7 @@ class Lobby extends Scene {
   room: Room<LobbyRoomState>;
   hostText: Phaser.GameObjects.Text;
   slots: Phaser.GameObjects.Text[];
+  socket?: GameSocket;
   constructor() {
     super('Lobby');
   }
@@ -66,17 +68,11 @@ class Lobby extends Scene {
       .setOrigin(0.5)
       .setInteractive();
     join.on('pointerdown', () => {
-      const socket = new WebSocket('ws://127.0.0.1:12345');
-      socket.addEventListener('open', () => {
-        socket.send('hello!');
-      });
-      // Listen for messages
-      socket.addEventListener('message', (event) => {
-        console.log('Message from server ', event.data);
-      });
-      socket.addEventListener('close', () => {
-        console.log('closed');
-      });
+      if (!this.socket) {
+        this.socket = new GameSocket().connect('ws://127.0.0.1:12345');
+      } else {
+        this.socket.ping();
+      }
       input.focus();
       go.setVisible(true);
     });
