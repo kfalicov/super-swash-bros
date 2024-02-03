@@ -4,14 +4,17 @@ import { z } from 'zod';
 const c = initContract();
 
 export const rooms = c.router({
-  create: {
+  //TODO remove this because it should not be invoked from FE
+  announce: {
     method: 'POST',
-    path: '/rooms/new',
+    path: '/rooms/announce',
     responses: {
-      201: c.type<string>(),
+      200: c.type<void>(),
     },
-    body: z.undefined(),
-    summary: 'Create a room',
+    body: z.object({
+      message: z.string(),
+    }),
+    summary: 'Announce to all rooms',
   },
   join: {
     method: 'GET',

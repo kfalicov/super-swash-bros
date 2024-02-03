@@ -1,5 +1,3 @@
-use std::str;
-
 use actix::prelude::*;
 use serde::Serialize;
 
@@ -16,6 +14,11 @@ pub struct RoomInfo {
     pub players: Vec<Player>,
 }
 
+#[derive(Serialize)]
+pub struct Chat {
+    pub msg: String,
+}
+
 /// client-session messaging- main message structure received from the client
 #[derive(Message, Serialize)]
 #[rtype(result = "()")]
@@ -27,4 +30,8 @@ pub enum Response {
     You(Player),
     #[serde(rename = "player")]
     Player(Player),
+    #[serde(rename = "chat")]
+    Chat(Chat),
+    #[serde(rename = "alert")]
+    Alert(Chat),
 }

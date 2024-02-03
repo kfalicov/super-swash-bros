@@ -1,39 +1,26 @@
 use actix::Addr;
-use actix_web::{
-    get,
-    http::header::{self, ContentType},
-    post, web, HttpResponse, Responder,
-};
-use mime;
-use serde::Serialize;
+use actix_web::{post, web, HttpResponse, Responder};
+use serde::Deserialize;
 
 use crate::libs::socket::server;
 
-#[derive(Serialize)]
-struct Room {
-    code: String,
+// Define your payload struct
+#[derive(Deserialize)]
+pub struct Announcement {
+    message: String,
 }
 
-#[post("/new")]
-async fn create_room(
-    _: web::Path<String>,
+#[post("/announce")]
+async fn announce(
     srv: web::Data<Addr<server::RoomServer>>,
+    announcement: web::Json<Announcement>,
 ) -> impl Responder {
-    HttpResponse::Created()
-        .content_type(ContentType(mime::APPLICATION_JSON))
-        .json(Room {
-            code: String::from("1234"),
-        })
-}
+    // Send a message to the RoomServer to broadcast to the room
+    srv.do_send(server::Broadcast::all(announcement.message.clone()));
 
-#[get("/{room_id}")]
-async fn join_room(path: web::Path<String>) -> impl Responder {
-    let room_id = path.into_inner();
     HttpResponse::Ok()
-        .insert_header(header::ContentType(mime::APPLICATION_JSON))
-        .json(Room { code: room_id })
 }
 
 pub fn api(cfg: &mut web::ServiceConfig) {
-    cfg.service(create_room).service(join_room);
+    cfg.service(announce);
 }

@@ -1,6 +1,6 @@
 import { Scene } from 'phaser';
 import { Room } from 'colyseus.js';
-import { GameSocket } from '../objects/socket';
+import { LinkCable } from '../objects/socket';
 import { LobbyRoomState } from '../../../matchmaking-master/src/rooms/schema/MyRoomState';
 import { api } from '@super-swash-bros/api';
 
@@ -11,7 +11,7 @@ class Lobby extends Scene {
   room: Room<LobbyRoomState>;
   hostText: Phaser.GameObjects.Text;
   slots: Phaser.GameObjects.Text[];
-  socket?: GameSocket;
+  socket?: LinkCable;
   constructor() {
     super('Lobby');
   }
@@ -74,7 +74,7 @@ class Lobby extends Scene {
 
     go.on('pointerdown', () => {
       if (!this.socket) {
-        new GameSocket()
+        new LinkCable()
           .on('room', (msg) => {
             host.setText(msg.code);
           })
@@ -92,7 +92,7 @@ class Lobby extends Scene {
 
     host.once('pointerdown', () => {
       if (!this.socket) {
-        new GameSocket()
+        new LinkCable()
           .on('room', (msg) => {
             host.setText(msg.code);
           })
@@ -119,6 +119,7 @@ class Lobby extends Scene {
      * TODO have the active player select a character
      */
     this.input.on('pointerdown', () => {
+      api.rooms.announce({ body: { message: 'hello' } });
       const player = Object.values(this.players).find(
         (player) => player.sessionId === this.room.sessionId
       );

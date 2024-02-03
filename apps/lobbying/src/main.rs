@@ -1,6 +1,7 @@
 use actix::prelude::*;
 use actix::Actor;
 use actix_cors::Cors;
+use actix_web::http::header;
 use actix_web::middleware::Logger;
 use actix_web::{get, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder};
 use actix_web_actors::ws;
@@ -8,17 +9,9 @@ use actix_web_actors::ws;
 mod libs;
 use libs::{
     api,
-    socket::{
-        server,
-        session::{self, PlayerSession},
-    },
+    socket::{server, session::PlayerSession},
 };
 use tokio;
-
-#[get("/")]
-async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("Hello world!")
-}
 
 /// Entry point for our route
 async fn socket_route(
@@ -52,15 +45,21 @@ async fn main() -> std::io::Result<()> {
         let server = server.clone();
         HttpServer::new(move || {
             // TODO change allowed origin to known FE domain
-            let cors = Cors::default().allow_any_origin().send_wildcard();
+            let cors = Cors::default()
+                .allowed_origin("http://localhost:4200")
+                .allowed_methods(vec!["GET", "POST", "OPTIONS"])
+                .allowed_headers(vec![
+                    header::AUTHORIZATION,
+                    header::ACCEPT,
+                    header::CONTENT_TYPE,
+                ]);
 
             App::new()
                 .app_data(web::Data::new(server.clone()))
                 .wrap(cors)
-                .service(hello)
                 .service(actix_web::web::scope("/rooms").configure(api::rooms))
         })
-        .bind(("127.0.0.1", 8080))?
+        .bind(("localhost", 8080))?
         .run()
     };
 
@@ -68,12 +67,15 @@ async fn main() -> std::io::Result<()> {
     let ws_server = {
         let server = server.clone();
         HttpServer::new(move || {
+            // TODO change allowed origin to known FE domain
+            let cors = Cors::default().allowed_origin("http://localhost:4200");
             App::new()
                 .app_data(web::Data::new(server.clone()))
+                .wrap(cors)
                 .route("/{code:.*}", web::get().to(socket_route)) // WebSocket route
                 .wrap(Logger::default())
         })
-        .bind(("127.0.0.1", 12345))?
+        .bind(("localhost", 12345))?
         .run()
     };
 

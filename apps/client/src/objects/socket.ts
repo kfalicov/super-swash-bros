@@ -8,10 +8,10 @@ type Handler = {
   [K in Response['cmd']]?: (msg: Extract<Response, { cmd: K }>) => void;
 };
 
-class GameSocket {
+class LinkCable {
   socket?: WebSocket;
   handlers: Handler = {};
-  connect(url: string): Promise<GameSocket> {
+  connect(url: string): Promise<LinkCable> {
     if (this.socket) return Promise.resolve(this);
     return new Promise((resolve, reject) => {
       this.socket = new WebSocket(url);
@@ -52,7 +52,7 @@ class GameSocket {
   on<T extends Response['cmd']>(
     command: T,
     func: (msg: Extract<Response, { cmd: T }>) => void
-  ): GameSocket {
+  ): LinkCable {
     // @ts-expect-error TS can't strongly infer this type but we know it is allowed
     this.handlers[command] = func;
     return this;
@@ -65,4 +65,4 @@ class GameSocket {
   }
 }
 
-export { GameSocket };
+export { LinkCable };

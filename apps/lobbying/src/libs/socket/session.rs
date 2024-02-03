@@ -2,7 +2,7 @@
 //! proxies commands from peer to `RoomServer`.
 
 use std::{
-    io, str,
+    str,
     time::{Duration, Instant},
 };
 
@@ -34,8 +34,8 @@ pub struct Plain(pub String);
 pub struct PlayerSession {
     /// unique room member id (only present while in a room)
     id: Option<String>,
-    /// this is address of chat server
-    addr: Addr<RoomServer>,
+    /// this is address of room hub
+    hub: Addr<RoomServer>,
     /// Client must send ping at least once per 10 seconds, otherwise we drop
     /// connection.
     hb: Instant,
@@ -57,9 +57,9 @@ impl Actor for PlayerSession {
     }
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
-        println!("stopping session");
-        // notify chat server
-        self.addr.do_send(server::Disconnect {
+        log::info!("killing {:?}", self.id);
+        // notify hub/room server of disconnect
+        self.hub.do_send(server::Disconnect {
             id: self.id.clone(),
             room: self.room.clone(),
         });
@@ -67,14 +67,11 @@ impl Actor for PlayerSession {
     }
 }
 
-impl actix::io::WriteHandler<io::Error> for PlayerSession {}
-
 /// handle messages from the client. We need to figure out what the client is trying to do and then
-/// send the appropriate message to the server
+/// send the appropriate message to the server actor
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PlayerSession {
     /// This is main event loop for client requests
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        log::debug!("Received Message {:?}", msg);
         // early exit on errors, otherwise pipe through
         let msg = match msg {
             Err(_) => {
@@ -98,12 +95,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PlayerSession {
                         Request::PlayerChoice(_p) => {}
                         Request::Join(j) => {
                             let Join { code } = j;
-                            // get address of client session
-                            let addr = ctx.address();
-                            println!("Join to room: {code}");
-                            self.room = Some(code.clone());
-                            self.addr.do_send(server::RoomJoin { addr, code });
-                            //TODO if new room is joined from same session, leave the old room
+                            self.join_room(ctx, code);
                         }
                         Request::Create(_) => {
                             if let Some(room) = &self.room {
@@ -117,7 +109,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PlayerSession {
                                     ctx.text(str);
                                 }
                             } else {
-                                let future = self.addr.send(server::CreateRoom {});
+                                let future = self.hub.send(server::CreateRoom {});
                                 ctx.spawn(future.into_actor(self).then(|res, act, ctx| {
                                     match res {
                                         Ok(code) => act.join_room(ctx, code),
@@ -137,7 +129,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PlayerSession {
     }
 }
 
-/// Handle messages from chat server, we simply send it to peer websocket
+/// Handle messages from hub, we simply send it to peer websocket
 impl Handler<responses::Response> for PlayerSession {
     type Result = ();
 
@@ -147,12 +139,13 @@ impl Handler<responses::Response> for PlayerSession {
         }
     }
 }
+
 /// Helper methods
 impl PlayerSession {
-    pub fn new(addr: Addr<RoomServer>, code: Option<&str>) -> Self {
+    pub fn new(hub: Addr<RoomServer>, code: Option<&str>) -> Self {
         Self {
             id: None,
-            addr,
+            hub,
             hb: Instant::now(),
             room: code.map(|s| s.to_owned()),
         }
@@ -169,7 +162,7 @@ impl PlayerSession {
                 println!("Websocket Client heartbeat failed, disconnecting!");
 
                 // notify chat server
-                act.addr.do_send(server::Disconnect {
+                act.hub.do_send(server::Disconnect {
                     id: act.id.clone(),
                     room: act.room.clone(),
                 });
@@ -189,8 +182,8 @@ impl PlayerSession {
     /// and update self with the room ID and session ID if successful
     fn join_room(&mut self, ctx: &mut <Self as Actor>::Context, code: String) {
         let future = self
-            .addr
-            .send(server::RoomJoin {
+            .hub
+            .send(server::JoinRoom {
                 addr: ctx.address(),
                 code: code.to_owned(),
             })

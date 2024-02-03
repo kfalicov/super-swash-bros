@@ -8,17 +8,9 @@ use actix::prelude::*;
 use rand::{self, distributions::Alphanumeric, rngs::ThreadRng, Rng};
 
 use super::{
-    requests::{self},
     responses::{self, Player, RoomInfo},
     session::{self},
 };
-
-/// New chat session is created
-#[derive(Message, Clone, Debug)]
-#[rtype(usize)]
-pub struct Connect {
-    pub addr: Recipient<requests::Request>,
-}
 
 /// Session is disconnected
 #[derive(Message, Clone, Debug)]
@@ -32,7 +24,7 @@ pub struct Disconnect {
 #[derive(Message, Clone, Debug)]
 /// returns a generated unique (within this room) ID for the player
 #[rtype(String)]
-pub struct RoomJoin {
+pub struct JoinRoom {
     /// client session address
     pub addr: Addr<session::PlayerSession>,
     /// 4-digit room code
@@ -42,6 +34,28 @@ pub struct RoomJoin {
 #[derive(Message, Clone, Debug)]
 #[rtype(String)]
 pub struct CreateRoom {}
+
+/// broadcast message to all users. Provide a room to scope the broadcast to that room
+#[derive(Message, Clone, Debug)]
+#[rtype(result = "()")]
+pub struct Broadcast {
+    pub room: Option<String>,
+    pub text: String,
+}
+impl Broadcast {
+    pub fn all(msg: String) -> Broadcast {
+        Broadcast {
+            room: None,
+            text: msg,
+        }
+    }
+    pub fn room(room: String, msg: String) -> Broadcast {
+        Broadcast {
+            room: Some(room),
+            text: msg,
+        }
+    }
+}
 
 /// `RoomServer` manages game rooms
 pub struct RoomServer {
@@ -70,31 +84,13 @@ impl Actor for RoomServer {
     type Context = Context<Self>;
 }
 
-/// Handler for Connect message.
-/// Register new session and assign unique id to this session
-impl Handler<Connect> for RoomServer {
-    type Result = usize;
-
-    fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
-        println!("Someone joined");
-
-        // register session with random id
-        let id = self.rng.gen::<usize>();
-        println!("{id}");
-
-        // send id back
-        id
-    }
-}
-
 /// Handler for Disconnect message.
 impl Handler<Disconnect> for RoomServer {
     type Result = ();
 
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
-        println!("Someone disconnected");
-
         if let (Some(code), Some(id)) = (msg.room, msg.id) {
+            log::info!("Player {} left room {}", id, code);
             if let Some(room) = self.rooms.get_mut(&code) {
                 room.remove(&id);
                 // TODO send message to other users
@@ -103,21 +99,12 @@ impl Handler<Disconnect> for RoomServer {
     }
 }
 
-/// Handler for Message message.
-// impl Handler<Message> for RoomServer {
-//     type Result = ();
-
-//     fn handle(&mut self, msg: Message, _: &mut Context<Self>) {
-//         self.send_message("main", msg, 10);
-//     }
-// }
-
 /// Join room, send join message to new room
-impl Handler<RoomJoin> for RoomServer {
+impl Handler<JoinRoom> for RoomServer {
     type Result = String;
 
-    fn handle(&mut self, msg: RoomJoin, _: &mut Context<Self>) -> Self::Result {
-        let RoomJoin { addr, code } = msg;
+    fn handle(&mut self, msg: JoinRoom, _: &mut Context<Self>) -> Self::Result {
+        let JoinRoom { addr, code } = msg;
 
         let hash: String = self
             .rng
@@ -178,5 +165,28 @@ impl Handler<CreateRoom> for RoomServer {
             .collect();
         self.rooms.insert(code.clone(), HashMap::new());
         code
+    }
+}
+
+impl Handler<Broadcast> for RoomServer {
+    type Result = ();
+    fn handle(&mut self, msg: Broadcast, _ctx: &mut Self::Context) -> Self::Result {
+        if let Some(room) = msg.room {
+            if let Some(room) = self.rooms.get(&room) {
+                for (_id, addr) in room {
+                    addr.do_send(responses::Response::Alert(responses::Chat {
+                        msg: msg.text.clone(),
+                    }));
+                }
+            }
+        } else {
+            for (_code, room) in &self.rooms {
+                for (_id, addr) in room {
+                    addr.do_send(responses::Response::Alert(responses::Chat {
+                        msg: msg.text.clone(),
+                    }));
+                }
+            }
+        }
     }
 }
