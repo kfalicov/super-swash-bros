@@ -68,24 +68,44 @@ class Lobby extends Scene {
       .setOrigin(0.5)
       .setInteractive();
     join.on('pointerdown', () => {
-      if (!this.socket) {
-        this.socket = new GameSocket().connect('ws://127.0.0.1:12345');
-      } else {
-        this.socket.ping();
-      }
       input.focus();
       go.setVisible(true);
     });
 
     go.on('pointerdown', () => {
+      if (!this.socket) {
+        new GameSocket()
+          .on('room', (msg) => {
+            host.setText(msg.code);
+          })
+          .connect(`ws://127.0.0.1:12345/${input.value}`)
+          .then((socket) => {
+            this.socket = socket;
+          });
+      } else {
+        this.socket.ping();
+      }
       join.setVisible(false).disableInteractive();
       go.setVisible(false).disableInteractive();
-      api.rooms.join({ params: { id: input.value.toUpperCase() } });
+      // api.rooms.join({ params: { id: input.value.toUpperCase() } });
     });
 
     host.once('pointerdown', () => {
+      if (!this.socket) {
+        new GameSocket()
+          .on('room', (msg) => {
+            host.setText(msg.code);
+          })
+          .connect(`ws://127.0.0.1:12345`)
+          .then((socket) => {
+            this.socket = socket;
+            socket.emit({ cmd: 'create' });
+          });
+      } else {
+        this.socket.ping();
+      }
       join.setVisible(false).disableInteractive();
-      api.rooms.create();
+      // api.rooms.create();
       // client
       //   .create<unknown>('lobby', { private: true })
       //   .then(this.linkRoom.bind(this))

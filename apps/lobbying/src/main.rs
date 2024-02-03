@@ -26,7 +26,17 @@ async fn socket_route(
     stream: web::Payload,
     srv: web::Data<Addr<server::RoomServer>>,
 ) -> Result<impl Responder, Error> {
-    ws::start(PlayerSession::new(srv.get_ref().clone()), &req, stream)
+    let code_option = req.match_info().get("code");
+    let code = match code_option {
+        Some("") | None => None,
+        c => c,
+    };
+    log::info!("code: {:?}", code);
+    ws::start(
+        PlayerSession::new(srv.get_ref().clone(), code),
+        &req,
+        stream,
+    )
 }
 
 #[actix_web::main]
@@ -60,7 +70,7 @@ async fn main() -> std::io::Result<()> {
         HttpServer::new(move || {
             App::new()
                 .app_data(web::Data::new(server.clone()))
-                .route("/", web::get().to(socket_route)) // WebSocket route
+                .route("/{code:.*}", web::get().to(socket_route)) // WebSocket route
                 .wrap(Logger::default())
         })
         .bind(("127.0.0.1", 12345))?

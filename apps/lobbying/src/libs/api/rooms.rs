@@ -1,12 +1,11 @@
-use actix::{Actor, Addr};
+use actix::Addr;
 use actix_web::{
     get,
     http::header::{self, ContentType},
     post, web, HttpResponse, Responder,
 };
-use actix_web_actors::ws;
 use mime;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::libs::socket::server;
 
