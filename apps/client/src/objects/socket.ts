@@ -1,5 +1,8 @@
+import { Player } from '@super-swash-bros/api';
+
 type Response =
-  | { cmd: 'you'; id: string }
+  | ({ cmd: 'you' } & Player)
+  | ({ cmd: 'player' } & Player)
   | { cmd: 'room'; code?: string; players: { id: string; c: number }[] };
 
 type Request = { cmd: 'create' };

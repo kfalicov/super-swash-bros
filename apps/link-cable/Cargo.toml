@@ -1,5 +1,5 @@
 [package]
-name = "lobbying"
+name = "link-cable"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,8 +9,6 @@ actix-codec = "0.5.2"
 actix-cors = "0.7.0"
 actix-web = "4"
 actix-web-actors = "4.2.0"
-bson = { version = "2", features = ["chrono-0_4"] } # Needed for using chrono datetime in doc
-byteorder = "1.5.0"
 env_logger = "0.11.1"
 log = "0.4.20"
 mime = "0.3.17"

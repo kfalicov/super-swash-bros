@@ -1,21 +1,24 @@
 use actix::prelude::*;
 use serde::Serialize;
-use ts_rs::TS;
+use typeshare::typeshare;
 
-#[derive(TS, Serialize, Clone)]
+#[derive(Serialize, Clone)]
+#[typeshare]
 pub struct Player {
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub c: Option<u8>,
 }
 
-#[derive(TS, Serialize)]
+#[derive(Serialize)]
+#[typeshare]
 pub struct RoomInfo {
     pub code: String,
     pub players: Vec<Player>,
 }
 
-#[derive(TS, Serialize)]
+#[derive(Serialize)]
+#[typeshare]
 pub struct Chat {
     pub msg: String,
 }

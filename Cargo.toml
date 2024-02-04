@@ -3,6 +3,7 @@
 resolver = '2'
 members = [
 	'apps/link-cable',
+	'apps/typegen',
 ]
 
 [profile.release]

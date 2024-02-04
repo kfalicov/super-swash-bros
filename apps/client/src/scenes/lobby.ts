@@ -98,14 +98,14 @@ class Lobby extends Scene {
      */
     this.input.on('pointerdown', () => {
       api.rooms.announce({ body: { message: 'hello' } });
-      const player = Object.values(this.players).find(
-        (player) => player.sessionId === this.room.sessionId
-      );
-      console.log('clicked', player);
-      this.room?.send('charselect', {
-        p: player.p,
-        c: Math.floor(Math.random() * 10),
-      });
+      // const player = Object.values(this.players).find(
+      //   (player) => player.sessionId === this.room.sessionId
+      // );
+      // console.log('clicked', player);
+      // this.room?.send('charselect', {
+      //   p: player.p,
+      //   c: Math.floor(Math.random() * 10),
+      // });
     });
 
     this.slots = [0, 1, 2, 3].map((p) =>
