@@ -3,7 +3,7 @@ use actix::Actor;
 use actix_cors::Cors;
 use actix_web::http::header;
 use actix_web::middleware::Logger;
-use actix_web::{get, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder};
+use actix_web::{ web, App, Error, HttpRequest,  HttpServer, Responder};
 use actix_web_actors::ws;
 
 mod libs;

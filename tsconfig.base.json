@@ -15,7 +15,8 @@
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@super-swash-bros/api": ["libs/api/src/index.ts"]
+      "@super-swash-bros/api": ["libs/api/src/index.ts"],
+      "@super-swash-bros/shared": ["apps/link-cable/bindings/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

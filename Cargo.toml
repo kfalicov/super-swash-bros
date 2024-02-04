@@ -2,7 +2,7 @@
 [workspace]
 resolver = '2'
 members = [
-	'apps/lobbying',
+	'apps/link-cable',
 ]
 
 [profile.release]

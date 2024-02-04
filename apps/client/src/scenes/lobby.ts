@@ -1,14 +1,12 @@
 import { Scene } from 'phaser';
 import { Room } from 'colyseus.js';
 import { LinkCable } from '../objects/socket';
-import { LobbyRoomState } from '../../../matchmaking-master/src/rooms/schema/MyRoomState';
 import { api } from '@super-swash-bros/api';
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
 class Lobby extends Scene {
   players: Record<string, { p: number; sessionId: string; c: number }> = {};
-  room: Room<LobbyRoomState>;
   hostText: Phaser.GameObjects.Text;
   slots: Phaser.GameObjects.Text[];
   socket?: LinkCable;
@@ -16,26 +14,6 @@ class Lobby extends Scene {
     super('Lobby');
   }
   preload() {}
-
-  /**
-   * wires up the room by setting up the listeners for room events
-   */
-  linkRoom(room: Room<LobbyRoomState>) {
-    this.room = room;
-    this.players = Array.from(room.state.players.values()).reduce((acc, p) => {
-      acc[p.p] = p;
-      return acc;
-    }, {});
-    room.state.players.onAdd((player, p) => {
-      this.players[p] = player;
-      player.listen('c', (value) => {
-        this.players[p].c = value;
-      });
-    }, false);
-    room.state.players.onRemove((player, p) => {
-      delete this.players[p];
-    });
-  }
 
   create() {
     this.cameras.main.setBackgroundColor('#ffffff');
@@ -148,9 +126,6 @@ class Lobby extends Scene {
     });
   }
   update() {
-    if (this.room) {
-      this.hostText.setText(this.room.id);
-    }
     this.slots.forEach((slot, index) =>
       slot.setText(`${this.players[index]?.c ?? 'NONE'}`)
     );
