@@ -14,7 +14,7 @@ pub struct Player {
 #[typeshare]
 pub struct RoomInfo {
     pub code: String,
-    pub players: Vec<Player>,
+    pub players: Vec<Option<Player>>,
 }
 
 #[derive(Serialize)]

@@ -16,7 +16,9 @@ use super::{
 #[derive(Message, Clone, Debug)]
 #[rtype(result = "()")]
 pub struct Disconnect {
+    /// the player ID
     pub id: Option<String>,
+    /// the room code
     pub room: Option<String>,
 }
 
@@ -57,10 +59,29 @@ impl Broadcast {
     }
 }
 
+#[derive(Clone)]
+pub struct PlayerInfo {
+    /// the player's unique ID
+    id: String,
+    /// the player's chosen character
+    c: Option<u8>,
+    /// the address of the player's session
+    addr: Addr<session::PlayerSession>,
+}
+
+/// a room containing player data
+pub struct Room {
+    code: String,
+    /// map of player id to player info
+    players: HashMap<String, PlayerInfo>,
+    /// an ordered list of player IDs
+    players_order: Vec<Option<String>>,
+}
+
 /// `RoomServer` manages game rooms
 pub struct RoomServer {
     /// map of rooms, each with set of users
-    rooms: HashMap<String, HashMap<String, Addr<session::PlayerSession>>>,
+    rooms: HashMap<String, Room>,
     rng: ThreadRng,
 }
 
@@ -75,6 +96,7 @@ impl Default for RoomServer {
 
 impl RoomServer {
     //TODO put reusable functionality here
+    fn add_to_room() {}
 }
 
 /// Make actor from `RoomServer`
@@ -92,7 +114,14 @@ impl Handler<Disconnect> for RoomServer {
         if let (Some(code), Some(id)) = (msg.room, msg.id) {
             log::info!("Player {} left room {}", id, code);
             if let Some(room) = self.rooms.get_mut(&code) {
-                room.remove(&id);
+                room.players.remove(&id);
+                let index = room
+                    .players_order
+                    .iter()
+                    .position(|x| x.as_ref() == Some(&id));
+                if let Some(idx) = index {
+                    room.players_order.remove(idx);
+                }
                 // TODO send message to other users
             }
         }
@@ -106,7 +135,8 @@ impl Handler<JoinRoom> for RoomServer {
     fn handle(&mut self, msg: JoinRoom, _: &mut Context<Self>) -> Self::Result {
         let JoinRoom { addr, code } = msg;
 
-        let hash: String = self
+        //player ID
+        let pid: String = self
             .rng
             .clone()
             .sample_iter(&Alphanumeric)
@@ -118,38 +148,52 @@ impl Handler<JoinRoom> for RoomServer {
             //TODO throw an error- joined invalid room
         }
         if let Some(room) = self.rooms.get_mut(&code) {
-            //construct list of players
-            let mut players: Vec<Player> = Vec::new();
-            //represent the new player in the list
-            let new_player = Player {
-                id: hash.clone(),
-                c: None,
-            };
-            players.push(new_player.clone());
-            for (id, addr) in room.clone() {
-                // Create a new player and add them to the players vector
-                let player = Player {
-                    id: id.clone(),
-                    //TODO replace with the correct value for `c`
-                    //this will require changes to the room struct to include more data
-                    c: Some(0),
-                };
-                players.push(player.clone());
+            // Find the position of the first empty space in the vec
+            let pos = room
+                .players_order
+                .iter()
+                .position(|x| x.is_none())
+                .unwrap_or(room.players_order.len());
 
-                addr.do_send(responses::Response::Player(new_player.clone()));
+            // Insert the id into the vec at that position
+            room.players_order.insert(pos, Some(pid.clone()));
+
+            //create a new player
+            let new_player = PlayerInfo {
+                id: pid.clone(),
+                c: None,
+                addr: addr.clone(),
+            };
+            //inform each player in the room about the new player
+            for (id, p) in room.players.clone() {
+                p.addr.do_send(responses::Response::Player(Player {
+                    id: new_player.id.clone(),
+                    c: new_player.c,
+                }));
             }
+            //insert the user into the room
+            room.players.insert(pid.clone(), new_player);
+
             //broadcast to the new user the info about the other users in the room
             addr.do_send(responses::Response::RoomInfo(RoomInfo {
-                players: players,
+                players: room
+                    .players_order
+                    .iter()
+                    .map(|id| {
+                        id.as_ref().and_then(|key| {
+                            room.players.get(key).map(|p| Player {
+                                id: p.id.clone(),
+                                c: p.c,
+                            })
+                        })
+                    })
+                    .collect(),
                 code,
             }));
-
-            //insert the user into the room
-            room.insert(hash.clone(), addr);
         }
 
         // send id back
-        hash
+        pid
     }
 }
 
@@ -163,7 +207,14 @@ impl Handler<CreateRoom> for RoomServer {
             .filter(|c| c.is_alphabetic() && c.is_lowercase())
             .take(4)
             .collect();
-        self.rooms.insert(code.clone(), HashMap::new());
+        self.rooms.insert(
+            code.clone(),
+            Room {
+                code: code.clone(),
+                players: HashMap::new(),
+                players_order: Vec::new(),
+            },
+        );
         code
     }
 }
@@ -173,16 +224,16 @@ impl Handler<Broadcast> for RoomServer {
     fn handle(&mut self, msg: Broadcast, _ctx: &mut Self::Context) -> Self::Result {
         if let Some(room) = msg.room {
             if let Some(room) = self.rooms.get(&room) {
-                for (_id, addr) in room {
-                    addr.do_send(responses::Response::Alert(responses::Chat {
+                for (_id, p) in room.players.clone() {
+                    p.addr.do_send(responses::Response::Alert(responses::Chat {
                         msg: msg.text.clone(),
                     }));
                 }
             }
         } else {
             for (_code, room) in &self.rooms {
-                for (_id, addr) in room {
-                    addr.do_send(responses::Response::Alert(responses::Chat {
+                for (_id, p) in room.players.clone() {
+                    p.addr.do_send(responses::Response::Alert(responses::Chat {
                         msg: msg.text.clone(),
                     }));
                 }

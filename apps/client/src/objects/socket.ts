@@ -3,7 +3,7 @@ import { Player } from '@super-swash-bros/api';
 type Response =
   | ({ cmd: 'you' } & Player)
   | ({ cmd: 'player' } & Player)
-  | { cmd: 'room'; code?: string; players: { id: string; c: number }[] };
+  | { cmd: 'room'; code?: string; players: (Player | null)[] };
 
 type Request = { cmd: 'create' };
 
