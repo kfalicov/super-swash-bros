@@ -8,23 +8,25 @@ pub struct Player {
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub c: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub i: Option<usize>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[typeshare]
 pub struct RoomInfo {
     pub code: String,
     pub players: Vec<Option<Player>>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[typeshare]
 pub struct Chat {
     pub msg: String,
 }
 
 /// client-session messaging- main message structure received from the client
-#[derive(Message, Serialize)]
+#[derive(Message, Serialize, Clone)]
 #[rtype(result = "()")]
 #[serde(tag = "cmd")]
 pub enum Response {

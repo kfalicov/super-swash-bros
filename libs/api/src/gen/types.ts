@@ -3,16 +3,16 @@
 */
 
 export interface Player {
-	id: string;
-	c?: number;
+  id: string;
+  i?: number;
+  c?: number;
 }
 
 export interface RoomInfo {
-	code: string;
-	players: Player[];
+  code: string;
+  players: Player[];
 }
 
 export interface Chat {
-	msg: string;
+  msg: string;
 }
-

@@ -8,7 +8,7 @@ use actix::prelude::*;
 use rand::{self, distributions::Alphanumeric, rngs::ThreadRng, Rng};
 
 use super::{
-    responses::{self, Player, RoomInfo},
+    responses::{self, Player, Response, RoomInfo},
     session::{self},
 };
 
@@ -36,6 +36,18 @@ pub struct JoinRoom {
 #[derive(Message, Clone, Debug)]
 #[rtype(String)]
 pub struct CreateRoom {}
+
+/// directly send arbitrary messages to room members
+#[derive(Message, Clone)]
+#[rtype(result = "()")]
+pub struct ToRoom {
+    pub msg: Response,
+    /// the room ID to send the message to
+    pub room: String,
+    /// the player ID the message is from.
+    /// this player is not included in the broadcast
+    pub id: String,
+}
 
 /// broadcast message to all users. Provide a room to scope the broadcast to that room
 #[derive(Message, Clone, Debug)]
@@ -169,6 +181,7 @@ impl Handler<JoinRoom> for RoomServer {
                 p.addr.do_send(responses::Response::Player(Player {
                     id: new_player.id.clone(),
                     c: new_player.c,
+                    i: Some(pos),
                 }));
             }
             //insert the user into the room
@@ -179,10 +192,12 @@ impl Handler<JoinRoom> for RoomServer {
                 players: room
                     .players_order
                     .iter()
-                    .map(|id| {
-                        id.as_ref().and_then(|key| {
+                    .enumerate()
+                    .map(|(index, item)| {
+                        item.as_ref().and_then(|key| {
                             room.players.get(key).map(|p| Player {
                                 id: p.id.clone(),
+                                i: Some(index),
                                 c: p.c,
                             })
                         })
@@ -236,6 +251,28 @@ impl Handler<Broadcast> for RoomServer {
                     p.addr.do_send(responses::Response::Alert(responses::Chat {
                         msg: msg.text.clone(),
                     }));
+                }
+            }
+        }
+    }
+}
+
+/// an option to directly forward messages to each player
+impl Handler<ToRoom> for RoomServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: ToRoom, _ctx: &mut Self::Context) {
+        if let Some(room) = self.rooms.get(&msg.room) {
+            for (player_id, player) in room.players.iter() {
+                log::info!(
+                    "sending message from player {} to room {}",
+                    player_id,
+                    msg.room
+                );
+                // check if the player ID matches the ID provided in msg
+                if player_id.ne(&msg.id) {
+                    // send the message to the player
+                    player.addr.do_send(msg.msg.clone());
                 }
             }
         }

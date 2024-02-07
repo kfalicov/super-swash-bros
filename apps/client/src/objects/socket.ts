@@ -5,7 +5,7 @@ type Response =
   | ({ cmd: 'player' } & Player)
   | { cmd: 'room'; code?: string; players: (Player | null)[] };
 
-type Request = { cmd: 'create' };
+type Request = { cmd: 'create' } | { cmd: 'choice'; c: number };
 
 type Handler = {
   [K in Response['cmd']]?: (msg: Extract<Response, { cmd: K }>) => void;

@@ -1,12 +1,15 @@
 import { Scene } from 'phaser';
-import { Room } from 'colyseus.js';
 import { LinkCable } from '../objects/socket';
-import { api } from '@super-swash-bros/api';
+import { Player, api } from '@super-swash-bros/api';
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
+const isDefined = <T>(value: T | undefined | null): value is T =>
+  value !== undefined && value !== null;
+
 class Lobby extends Scene {
-  players: Record<string, { p: number; sessionId: string; c: number }> = {};
+  sessionId?: string;
+  players: (Player | null)[] = [];
   hostText: Phaser.GameObjects.Text;
   slots: Phaser.GameObjects.Text[];
   socket?: LinkCable;
@@ -52,14 +55,7 @@ class Lobby extends Scene {
 
     go.on('pointerdown', () => {
       if (!this.socket) {
-        new LinkCable()
-          .on('room', (msg) => {
-            host.setText(msg.code);
-          })
-          .connect(`ws://127.0.0.1:12345/${input.value}`)
-          .then((socket) => {
-            this.socket = socket;
-          });
+        this.join(input.value);
       } else {
         this.socket.ping();
       }
@@ -70,15 +66,7 @@ class Lobby extends Scene {
 
     host.once('pointerdown', () => {
       if (!this.socket) {
-        new LinkCable()
-          .on('room', (msg) => {
-            host.setText(msg.code);
-          })
-          .connect(`ws://127.0.0.1:12345`)
-          .then((socket) => {
-            this.socket = socket;
-            socket.emit({ cmd: 'create' });
-          });
+        this.host();
       } else {
         this.socket.ping();
       }
@@ -97,7 +85,13 @@ class Lobby extends Scene {
      * TODO have the active player select a character
      */
     this.input.on('pointerdown', () => {
-      api.rooms.announce({ body: { message: 'hello' } });
+      const c = Math.floor(Math.random() * 10);
+      const idx = this.players.findIndex((p) => p.id === this.sessionId);
+      if (idx > -1) this.players[idx].c = c;
+      this.socket?.emit({
+        cmd: 'choice',
+        c,
+      });
       // const player = Object.values(this.players).find(
       //   (player) => player.sessionId === this.room.sessionId
       // );
@@ -110,7 +104,7 @@ class Lobby extends Scene {
 
     this.slots = [0, 1, 2, 3].map((p) =>
       this.add
-        .text(40 + 40 * p, 140, `${p}`, {
+        .text(40 + 40 * p, 140, ``, {
           color: 'red',
           fontFamily: 'font1',
         })
@@ -125,10 +119,42 @@ class Lobby extends Scene {
       this.scene.manager.switch(this.scene.key, 'World');
     });
   }
+  host() {
+    this.connectCable().then((socket) => socket.emit({ cmd: 'create' }));
+  }
+  join(room: string) {
+    this.connectCable(room).then((socket) => socket.emit({ cmd: 'create' }));
+  }
+  async connectCable(code?: string) {
+    return await new LinkCable()
+      .on('room', (msg) => {
+        this.hostText.setText(msg.code);
+        this.players = msg.players;
+      })
+      .on('player', (msg) => {
+        if (isDefined(msg.i)) {
+          this.players[msg.i] = msg;
+        }
+        if (isDefined(msg.c)) {
+          const idx = this.players.findIndex((p) => p.id === msg.id);
+          if (idx > -1) this.players[idx].c = msg.c;
+        }
+      })
+      .on('you', (msg) => {
+        this.sessionId = msg.id;
+      })
+      .connect(`ws://127.0.0.1:12345${isDefined(code) ? `/${code}` : ''}`)
+      .then((socket) => {
+        this.socket = socket;
+        return socket;
+      });
+  }
   update() {
-    this.slots.forEach((slot, index) =>
-      slot.setText(`${this.players[index]?.c ?? 'NONE'}`)
-    );
+    this.slots.forEach((slot, index) => {
+      if (isDefined(this.players[index])) {
+        slot.setText(`${this.players[index]?.c ?? 'NONE'}`);
+      }
+    });
   }
 }
 

@@ -16,8 +16,11 @@ use crate::libs::socket::{
     responses::RoomInfo,
 };
 
-use super::responses::{self, Player};
 use super::server::{self, RoomServer};
+use super::{
+    responses::{self, Player},
+    server::ToRoom,
+};
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -92,7 +95,19 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PlayerSession {
                 // Deserialize the binary data into a JSON object
                 if let Ok(json) = serde_json::from_str::<Request>(&msg) {
                     match json {
-                        Request::PlayerChoice(_p) => {}
+                        Request::PlayerChoice(p) => {
+                            if let (Some(id), Some(room)) = (self.id.clone(), self.room.clone()) {
+                                self.hub.do_send(ToRoom {
+                                    msg: responses::Response::Player(Player {
+                                        id: id.clone(),
+                                        c: Some(p.c),
+                                        i: None,
+                                    }),
+                                    id,
+                                    room,
+                                })
+                            }
+                        }
                         Request::Join(j) => {
                             let Join { code } = j;
                             self.join_room(ctx, code);
@@ -195,6 +210,7 @@ impl PlayerSession {
                         if let Ok(msg) = serde_json::to_string(&responses::Response::You(Player {
                             id: hash,
                             c: None,
+                            i: None,
                         })) {
                             ctx.text(msg);
                         }
