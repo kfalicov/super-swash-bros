@@ -3,7 +3,7 @@ use actix::Actor;
 use actix_cors::Cors;
 use actix_web::http::header;
 use actix_web::middleware::Logger;
-use actix_web::{ web, App, Error, HttpRequest,  HttpServer, Responder};
+use actix_web::{web, App, Error, HttpRequest, HttpServer, Responder};
 use actix_web_actors::ws;
 
 mod libs;
@@ -19,17 +19,7 @@ async fn socket_route(
     stream: web::Payload,
     srv: web::Data<Addr<server::RoomServer>>,
 ) -> Result<impl Responder, Error> {
-    let code_option = req.match_info().get("code");
-    let code = match code_option {
-        Some("") | None => None,
-        c => c,
-    };
-    log::info!("code: {:?}", code);
-    ws::start(
-        PlayerSession::new(srv.get_ref().clone(), code),
-        &req,
-        stream,
-    )
+    ws::start(PlayerSession::new(srv.get_ref().clone()), &req, stream)
 }
 
 #[actix_web::main]

@@ -16,7 +16,10 @@ use crate::libs::socket::{
     responses::RoomInfo,
 };
 
-use super::server::{self, RoomServer};
+use super::{
+    requests,
+    server::{self, RoomServer},
+};
 use super::{
     responses::{self, Player},
     server::ToRoom,
@@ -52,11 +55,6 @@ impl Actor for PlayerSession {
     fn started(&mut self, ctx: &mut Self::Context) {
         // we'll start heartbeat process on session start.
         self.hb(ctx);
-
-        //If the player starts with a room code already present, join that room
-        if let Some(code) = &self.room {
-            self.join_room(ctx, code.to_owned())
-        }
     }
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
@@ -109,32 +107,57 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PlayerSession {
                             }
                         }
                         Request::Join(j) => {
-                            let Join { code } = j;
-                            self.join_room(ctx, code);
+                            let code = j.code;
+                            self.hub.do_send(server::JoinRoom {
+                                addr: ctx.address(),
+                                code: code.to_owned(),
+                            });
                         }
                         Request::Create(_) => {
                             if let Some(room) = &self.room {
-                                //session is already part of a room
-                                let msg = responses::Response::RoomInfo(RoomInfo {
-                                    //TODO get players of the room in case there are any
-                                    players: Vec::new(),
-                                    code: room.to_owned(),
-                                });
-                                if let Ok(str) = serde_json::to_string(&msg) {
-                                    ctx.text(str);
-                                }
+                                //TODO request existing room info from server
                             } else {
-                                let future = self.hub.send(server::CreateRoom {});
-                                ctx.spawn(future.into_actor(self).then(|res, act, ctx| {
-                                    match res {
-                                        Ok(code) => act.join_room(ctx, code),
-                                        _ => ctx.text("Failed to create room"),
-                                    }
-                                    actix::fut::ready(())
-                                }));
+                                self.hub.do_send(server::CreateRoom {
+                                    addr: ctx.address(),
+                                });
+                            }
+                        }
+                        Request::Offer(offer) => {
+                            if let Some(room) = &self.room {
+                                if let Some(id) = &self.id {
+                                    self.hub.do_send(server::ToRoom {
+                                        msg: responses::Response::Offer(offer),
+                                        id: id.to_string(),
+                                        room: room.to_string(),
+                                    })
+                                }
+                            }
+                        }
+                        Request::Answer(offer) => {
+                            if let Some(room) = &self.room {
+                                if let Some(id) = &self.id {
+                                    self.hub.do_send(server::ToRoom {
+                                        msg: responses::Response::Answer(offer),
+                                        id: id.to_string(),
+                                        room: room.to_string(),
+                                    })
+                                }
+                            }
+                        }
+                        Request::IceCandidate(ice) => {
+                            if let Some(room) = &self.room {
+                                if let Some(id) = &self.id {
+                                    self.hub.do_send(server::ToRoom {
+                                        msg: responses::Response::IceCandidate(ice),
+                                        id: id.to_string(),
+                                        room: room.to_string(),
+                                    })
+                                }
                             }
                         }
                     }
+                } else {
+                    log::debug!("Failed to deserialize message: {:#?}", msg)
                 }
             }
             _ => {
@@ -149,6 +172,15 @@ impl Handler<responses::Response> for PlayerSession {
     type Result = ();
 
     fn handle(&mut self, msg: responses::Response, ctx: &mut Self::Context) {
+        match msg.clone() {
+            responses::Response::You(player) => {
+                self.id = Some(player.id.clone());
+            }
+            responses::Response::RoomInfo(room) => {
+                self.room = Some(room.code.clone());
+            }
+            _ => log::debug!("forwarding message without modification: {:?}", msg),
+        }
         if let Ok(str) = serde_json::to_string(&msg) {
             ctx.text(str);
         }
@@ -157,12 +189,12 @@ impl Handler<responses::Response> for PlayerSession {
 
 /// Helper methods
 impl PlayerSession {
-    pub fn new(hub: Addr<RoomServer>, code: Option<&str>) -> Self {
+    pub fn new(hub: Addr<RoomServer>) -> Self {
         Self {
             id: None,
             hub,
             hb: Instant::now(),
-            room: code.map(|s| s.to_owned()),
+            room: None,
         }
     }
 
@@ -191,35 +223,5 @@ impl PlayerSession {
 
             ctx.ping(b"");
         });
-    }
-
-    /// asynchronously request to join a room
-    /// and update self with the room ID and session ID if successful
-    fn join_room(&mut self, ctx: &mut <Self as Actor>::Context, code: String) {
-        let future = self
-            .hub
-            .send(server::JoinRoom {
-                addr: ctx.address(),
-                code: code.to_owned(),
-            })
-            .into_actor(self)
-            .then(|res, act, ctx| {
-                match res {
-                    Ok(hash) => {
-                        act.id = Some(hash.clone());
-                        if let Ok(msg) = serde_json::to_string(&responses::Response::You(Player {
-                            id: hash,
-                            c: None,
-                            i: None,
-                        })) {
-                            ctx.text(msg);
-                        }
-                    }
-                    _ => (),
-                }
-                actix::fut::ready(())
-            });
-
-        ctx.spawn(future);
     }
 }

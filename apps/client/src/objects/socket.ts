@@ -3,9 +3,18 @@ import { Player } from '@super-swash-bros/api';
 type Response =
   | ({ cmd: 'you' } & Player)
   | ({ cmd: 'player' } & Player)
-  | { cmd: 'room'; code?: string; players: (Player | null)[] };
+  | { cmd: 'room'; code?: string; players: (Player | null)[] }
+  | { cmd: 'offer'; offer: RTCSessionDescriptionInit }
+  | { cmd: 'answer'; offer: RTCSessionDescriptionInit }
+  | { cmd: 'ice'; candidate: RTCIceCandidate };
 
-type Request = { cmd: 'create' } | { cmd: 'choice'; c: number };
+type Request =
+  | { cmd: 'create' }
+  | { cmd: 'choice'; c: number }
+  | { cmd: 'join'; code: string }
+  | { cmd: 'offer'; offer: RTCSessionDescriptionInit }
+  | { cmd: 'answer'; offer: RTCSessionDescriptionInit }
+  | { cmd: 'ice'; candidate: RTCIceCandidate };
 
 type Handler = {
   [K in Response['cmd']]?: (msg: Extract<Response, { cmd: K }>) => void;
@@ -26,7 +35,6 @@ class LinkCable {
       this.socket.addEventListener('message', (event) => {
         try {
           const msg = JSON.parse(event.data) as Response;
-          console.log(msg, this.handlers);
           // @ts-expect-error TS can't strongly infer this type but we know it is allowed
           this.handlers[msg.cmd]?.(msg);
         } catch (e) {

@@ -13,6 +13,8 @@ class Lobby extends Scene {
   hostText: Phaser.GameObjects.Text;
   slots: Phaser.GameObjects.Text[];
   socket?: LinkCable;
+  rtc?: RTCPeerConnection;
+  cable?: RTCDataChannel;
   constructor() {
     super('Lobby');
   }
@@ -92,14 +94,6 @@ class Lobby extends Scene {
         cmd: 'choice',
         c,
       });
-      // const player = Object.values(this.players).find(
-      //   (player) => player.sessionId === this.room.sessionId
-      // );
-      // console.log('clicked', player);
-      // this.room?.send('charselect', {
-      //   p: player.p,
-      //   c: Math.floor(Math.random() * 10),
-      // });
     });
 
     this.slots = [0, 1, 2, 3].map((p) =>
@@ -116,20 +110,84 @@ class Lobby extends Scene {
       .setSize(20, 10)
       .setInteractive();
     play.on('pointerdown', () => {
-      this.scene.manager.switch(this.scene.key, 'World');
+      if (this.socket && this.players.length > 0) {
+        this.handshake();
+      }
+      // this.scene.manager.switch(this.scene.key, 'World');
     });
+    this.playBtn = play;
   }
   host() {
     this.connectCable().then((socket) => socket.emit({ cmd: 'create' }));
   }
   join(room: string) {
-    this.connectCable(room).then((socket) => socket.emit({ cmd: 'create' }));
+    this.connectCable().then((socket) =>
+      socket.emit({ cmd: 'join', code: room })
+    );
   }
-  async connectCable(code?: string) {
+  /**
+   * the handshake can only be initiated from the "host" device (player 0)
+   * and consumed by all other players.
+   * It may be triggered from socket messages
+   * if other players start the game.
+   * //TODO allow other players to start the game
+   * @param offer the offer or answer that occurs during the handshake
+   */
+  handshake(
+    offer?: RTCSessionDescriptionInit,
+    queuedIceCandidates?: RTCIceCandidate[]
+  ) {
+    const cable = this.rtc.createDataChannel('playerData');
+    cable.onopen = () => {
+      console.log('cable connected');
+    };
+    cable.onmessage = (event) => {
+      console.log('cable message', event.data);
+    };
+    this.cable = cable;
+    if (!isDefined(offer)) {
+      this.rtc.createOffer().then((offer) => {
+        this.rtc.setLocalDescription(offer);
+        this.socket?.emit({ cmd: 'offer', offer });
+      });
+    } else {
+      //we have received an offer, or an answer
+      this.rtc.setRemoteDescription(offer).then(() => {
+        if (!isDefined(this.rtc.localDescription)) {
+          this.rtc.createAnswer().then((answer) => {
+            this.rtc.setLocalDescription(answer);
+            this.socket?.emit({ cmd: 'answer', offer: answer });
+          });
+        }
+        //regardless of how a remote description is set (via offer or answer) we need to add any queued ice candidates
+        if (isDefined(queuedIceCandidates)) {
+          for (const candidate of queuedIceCandidates) {
+            this.rtc.addIceCandidate(candidate);
+          }
+        }
+      });
+      console.log('answered offer');
+    }
+  }
+  async connectCable() {
+    const queuedIceCandidates: RTCIceCandidate[] = [];
     return await new LinkCable()
       .on('room', (msg) => {
+        if (!msg.code) {
+          //TODO handle room failed to create
+          return;
+        }
         this.hostText.setText(msg.code);
         this.players = msg.players;
+        this.rtc = new RTCPeerConnection();
+        this.rtc.onicecandidate = (event) => {
+          if (isDefined(event.candidate)) {
+            this.socket.emit({
+              cmd: 'ice',
+              candidate: event.candidate,
+            });
+          }
+        };
       })
       .on('player', (msg) => {
         if (isDefined(msg.i)) {
@@ -142,8 +200,28 @@ class Lobby extends Scene {
       })
       .on('you', (msg) => {
         this.sessionId = msg.id;
+        if (isDefined(msg.i) && msg.i === 0) {
+          this.playBtn.setVisible(true).setInteractive();
+        } else {
+          this.playBtn.setVisible(false).disableInteractive();
+        }
       })
-      .connect(`ws://127.0.0.1:12345${isDefined(code) ? `/${code}` : ''}`)
+      .on('offer', (msg) => {
+        this.handshake(msg.offer, queuedIceCandidates);
+      })
+      .on('answer', (msg) => {
+        this.handshake(msg.offer, queuedIceCandidates);
+      })
+      .on('ice', (msg) => {
+        if (isDefined(msg.candidate)) {
+          if (isDefined(this.rtc.remoteDescription)) {
+            this.rtc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+          } else {
+            queuedIceCandidates.push(new RTCIceCandidate(msg.candidate));
+          }
+        }
+      })
+      .connect(`ws://127.0.0.1:12345`)
       .then((socket) => {
         this.socket = socket;
         return socket;
