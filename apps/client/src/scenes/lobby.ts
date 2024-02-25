@@ -122,18 +122,33 @@ class Lobby extends Scene {
         this.handshake();
         play.disableInteractive().setVisible(false);
       }
-      this.keys = this.input.keyboard.addKeys({
-        up: 'W',
-        left: 'A',
-        down: 'S',
-        right: 'D',
-        punch: 'SPACE',
-        pickup: 'E',
-        drop: 'Q',
-      }) as Record<string, unknown>;
       // this.scene.manager.switch(this.scene.key, 'World');
     });
     this.playBtn = play;
+
+    const syncKeyboardState = () => {
+      if (isDefined(this.cable) && this.cable.readyState === 'open') {
+        if (isDefined(this.keys)) {
+          const {
+            left: { isDown: left },
+            right: { isDown: right },
+            up: { isDown: up },
+            down: { isDown: down },
+            punch,
+            pickup,
+            drop,
+          } = this.keys;
+          console.log('sending', { left, right, up, down });
+          this.cable.send(
+            JSON.stringify({ [this.sessionId]: { left, right, up, down } })
+          );
+        }
+      }
+    };
+
+    //emit events to the datachannel when keys are pressed
+    this.input.keyboard.on('keydown', syncKeyboardState);
+    this.input.keyboard.on('keyup', syncKeyboardState);
   }
   host() {
     this.connectCable().then((socket) => socket.emit({ cmd: 'create' }));
@@ -155,31 +170,33 @@ class Lobby extends Scene {
     offer?: RTCSessionDescriptionInit,
     queuedIceCandidates?: RTCIceCandidate[]
   ) {
-    if (!isDefined(this.cable)) {
-      const cable = this.rtc.createDataChannel('playerData', {
-        ordered: false,
-      });
-      cable.onopen = () => {
-        console.log('cable connected');
-        this.rtc.getStats().then((stats) => {
-          stats.forEach((report) => {
-            if (
-              report.type === 'local-candidate' ||
-              report.type === 'remote-candidate'
-            ) {
-              console.log(report);
-            }
-          });
-        });
-      };
-      cable.onmessage = (event) => {
-        console.log('cable message', event.data);
-      };
-      cable.onerror = (event) => console.error('error', event);
-      cable.onclose = () => console.log('cable closed');
-      this.cable = cable;
-    }
     if (!isDefined(offer)) {
+      if (!isDefined(this.cable)) {
+        console.log("creating datachannel on initiator's side");
+        const cable = this.rtc.createDataChannel('playerData', {
+          ordered: false,
+        });
+        cable.onopen = () => {
+          console.log('cable connected - caller');
+
+          this.keys = this.input.keyboard.addKeys({
+            up: 'W',
+            left: 'A',
+            down: 'S',
+            right: 'D',
+            punch: 'SPACE',
+            pickup: 'E',
+            drop: 'Q',
+          }) as Record<string, unknown>;
+        };
+        cable.onmessage = (event) => {
+          console.log('received', event.data);
+        };
+        cable.onerror = (event) => console.error('error', event);
+        cable.onclose = () => console.log('cable closed');
+        this.cable = cable;
+      }
+      console.log('creating offer');
       this.rtc.createOffer().then((offer) => {
         this.rtc.setLocalDescription(offer);
         this.socket?.emit({ cmd: 'offer', offer });
@@ -192,6 +209,28 @@ class Lobby extends Scene {
             this.rtc.setLocalDescription(answer);
             this.socket?.emit({ cmd: 'answer', offer: answer });
           });
+          this.rtc.ondatachannel = (event) => {
+            const dataChannel = event.channel;
+
+            dataChannel.onopen = (event) => {
+              console.log('cable connected - callee');
+
+              this.keys = this.input.keyboard.addKeys({
+                up: 'W',
+                left: 'A',
+                down: 'S',
+                right: 'D',
+                punch: 'SPACE',
+                pickup: 'E',
+                drop: 'Q',
+              }) as Record<string, unknown>;
+            };
+
+            dataChannel.onmessage = function (event) {
+              console.log('received', event.data);
+            };
+            this.cable = dataChannel;
+          };
         }
         //regardless of how a remote description is set (via offer or answer) we need to add any queued ice candidates
         if (isDefined(queuedIceCandidates)) {
@@ -275,26 +314,6 @@ class Lobby extends Scene {
         slot.setText(`${this.players[index]?.c ?? 'NONE'}`);
       }
     });
-
-    if (isDefined(this.cable) && this.cable.readyState === 'open') {
-      if (isDefined(this.keys)) {
-        const {
-          left: { isDown: left },
-          right: { isDown: right },
-          up: { isDown: up },
-          down: { isDown: down },
-          punch,
-          pickup,
-          drop,
-        } = this.keys;
-        if (left || right || up || down) {
-          console.log('sending', { left, right, up, down });
-          this.cable.send(
-            JSON.stringify({ [this.sessionId]: { left, right, up, down } })
-          );
-        }
-      }
-    }
   }
 }
 
