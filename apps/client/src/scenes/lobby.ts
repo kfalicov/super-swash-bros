@@ -1,9 +1,7 @@
 import { Scene } from 'phaser';
 import { LinkCable } from '../objects/socket';
 import { Player } from '@super-swash-bros/api';
-
-const isDefined = <T>(value: T | undefined | null): value is T =>
-  value !== undefined && value !== null;
+import { isDefined } from '../lib/is';
 
 const configuration = {
   iceServers: [
@@ -22,7 +20,6 @@ class Lobby extends Scene {
   socket?: LinkCable;
   rtc?: RTCPeerConnection;
   cable?: RTCDataChannel;
-  keys?: Record<string, unknown>;
   constructor() {
     super('Lobby');
   }
@@ -119,36 +116,15 @@ class Lobby extends Scene {
       .setInteractive();
     play.on('pointerdown', () => {
       if (this.socket && this.players.length > 0) {
-        this.handshake();
         play.disableInteractive().setVisible(false);
+        this.handshake().then(() => {
+          this.createWorld();
+        });
+      } else {
+        this.createWorld();
       }
-      // this.scene.manager.switch(this.scene.key, 'World');
     });
     this.playBtn = play;
-
-    const syncKeyboardState = () => {
-      if (isDefined(this.cable) && this.cable.readyState === 'open') {
-        if (isDefined(this.keys)) {
-          const {
-            left: { isDown: left },
-            right: { isDown: right },
-            up: { isDown: up },
-            down: { isDown: down },
-            punch,
-            pickup,
-            drop,
-          } = this.keys;
-          console.log('sending', { left, right, up, down });
-          this.cable.send(
-            JSON.stringify({ [this.sessionId]: { left, right, up, down } })
-          );
-        }
-      }
-    };
-
-    //emit events to the datachannel when keys are pressed
-    this.input.keyboard.on('keydown', syncKeyboardState);
-    this.input.keyboard.on('keyup', syncKeyboardState);
   }
   host() {
     this.connectCable().then((socket) => socket.emit({ cmd: 'create' }));
@@ -159,52 +135,65 @@ class Lobby extends Scene {
     );
   }
   /**
-   * the handshake can only be initiated from the "host" device (player 0)
-   * and consumed by all other players.
-   * It may be triggered from socket messages
-   * if other players start the game.
+   * initiates the RTC handshake. When the returned promise resolves,
+   * it means that the players are connected and the game can start.
    * //TODO allow other players to start the game
    * @param offer the offer or answer that occurs during the handshake
+   * @returns a promise that resolves when the player's local description is set
    */
-  handshake(
-    offer?: RTCSessionDescriptionInit,
-    queuedIceCandidates?: RTCIceCandidate[]
-  ) {
-    if (!isDefined(offer)) {
-      if (!isDefined(this.cable)) {
-        console.log("creating datachannel on initiator's side");
-        const cable = this.rtc.createDataChannel('playerData', {
-          ordered: false,
+  handshake() {
+    /**
+     * create the host RTCPeerConnection
+     */
+    this.rtc = new RTCPeerConnection(configuration);
+    const cable = this.rtc.createDataChannel('playerData', {
+      ordered: false,
+    });
+    cable.onopen = () => {
+      console.log('cable connected - caller');
+    };
+    cable.onerror = (event) => console.error('error', event);
+    cable.onclose = () => console.log('cable closed');
+    this.cable = cable;
+    this.rtc.onicecandidate = (event) => {
+      if (isDefined(event.candidate)) {
+        console.log('generated', event.candidate.usernameFragment);
+        this.socket.emit({
+          cmd: 'ice',
+          candidate: event.candidate,
         });
-        cable.onopen = () => {
-          console.log('cable connected - caller');
-
-          this.keys = this.input.keyboard.addKeys({
-            up: 'W',
-            left: 'A',
-            down: 'S',
-            right: 'D',
-            punch: 'SPACE',
-            pickup: 'E',
-            drop: 'Q',
-          }) as Record<string, unknown>;
-        };
-        cable.onmessage = (event) => {
-          console.log('received', event.data);
-        };
-        cable.onerror = (event) => console.error('error', event);
-        cable.onclose = () => console.log('cable closed');
-        this.cable = cable;
       }
-      console.log('creating offer');
+    };
+
+    return new Promise<void>((resolve, reject) => {
       this.rtc.createOffer().then((offer) => {
         this.rtc.setLocalDescription(offer);
         this.socket?.emit({ cmd: 'offer', offer });
+        resolve();
       });
-    } else {
-      //we have received an offer, or an answer
-      this.rtc.setRemoteDescription(offer).then(() => {
-        if (!isDefined(this.rtc.localDescription)) {
+    });
+  }
+
+  handleDescription(
+    offer: RTCSessionDescriptionInit,
+    queuedIceCandidates: RTCIceCandidate[]
+  ) {
+    if (!isDefined(this.rtc)) {
+      this.rtc = new RTCPeerConnection(configuration);
+      this.rtc.onicecandidate = (event) => {
+        if (isDefined(event.candidate)) {
+          console.log('generated', event.candidate.usernameFragment);
+          this.socket.emit({
+            cmd: 'ice',
+            candidate: event.candidate,
+          });
+        }
+      };
+    }
+    this.rtc.setRemoteDescription(offer).then(() => {
+      if (!isDefined(this.rtc.localDescription)) {
+        if (offer.type === 'offer') {
+          //If we get an offer, we need to answer it
           this.rtc.createAnswer().then((answer) => {
             this.rtc.setLocalDescription(answer);
             this.socket?.emit({ cmd: 'answer', offer: answer });
@@ -214,36 +203,33 @@ class Lobby extends Scene {
 
             dataChannel.onopen = (event) => {
               console.log('cable connected - callee');
-
-              this.keys = this.input.keyboard.addKeys({
-                up: 'W',
-                left: 'A',
-                down: 'S',
-                right: 'D',
-                punch: 'SPACE',
-                pickup: 'E',
-                drop: 'Q',
-              }) as Record<string, unknown>;
-            };
-
-            dataChannel.onmessage = function (event) {
-              console.log('received', event.data);
             };
             this.cable = dataChannel;
+            this.createWorld();
           };
+        } else if (offer.type === 'answer') {
+          //if we get an answer, we don't need to do anything past setting the remote description
         }
-        //regardless of how a remote description is set (via offer or answer) we need to add any queued ice candidates
-        if (isDefined(queuedIceCandidates)) {
-          while (queuedIceCandidates.length > 0) {
-            const candidate = queuedIceCandidates.shift();
-            console.log('adding', candidate.usernameFragment);
-            this.rtc.addIceCandidate(candidate);
-          }
+      }
+
+      if (isDefined(queuedIceCandidates)) {
+        while (queuedIceCandidates.length > 0) {
+          const candidate = queuedIceCandidates.shift();
+          console.log('adding', candidate.usernameFragment);
+          this.rtc.addIceCandidate(candidate);
         }
-      });
-      console.log('answered offer');
-    }
+      }
+    });
   }
+
+  createWorld() {
+    this.scene.manager.switch(this.scene.key, 'World');
+    const world = this.scene.manager.getScene('World');
+    world.rtc = this.rtc;
+    world.cable = this.cable;
+    world.initPlayers(this.sessionId, this.players);
+  }
+
   async connectCable() {
     const queuedIceCandidates: RTCIceCandidate[] = [];
     return await new LinkCable()
@@ -254,19 +240,6 @@ class Lobby extends Scene {
         }
         this.hostText.setText(msg.code);
         this.players = msg.players;
-        this.rtc = new RTCPeerConnection(configuration);
-        this.rtc.onicecandidate = (event) => {
-          if (isDefined(event.candidate)) {
-            console.log('generated', event.candidate.usernameFragment);
-            this.socket.emit({
-              cmd: 'ice',
-              candidate: event.candidate,
-            });
-          }
-        };
-        this.rtc.oniceconnectionstatechange = (event) => {
-          console.log('ICE connection state is', this.rtc.iceConnectionState);
-        };
       })
       .on('player', (msg) => {
         if (isDefined(msg.i)) {
@@ -286,10 +259,10 @@ class Lobby extends Scene {
         }
       })
       .on('offer', (msg) => {
-        this.handshake(msg.offer, queuedIceCandidates);
+        this.handleDescription(msg.offer, queuedIceCandidates);
       })
       .on('answer', (msg) => {
-        this.handshake(msg.offer, queuedIceCandidates);
+        this.handleDescription(msg.offer, queuedIceCandidates);
       })
       .on('ice', (msg) => {
         if (isDefined(msg.candidate)) {
