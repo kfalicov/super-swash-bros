@@ -1,20 +1,28 @@
 import { Scene } from 'phaser';
 import { LinkCable } from '../objects/socket';
-import { Player, api } from '@super-swash-bros/api';
-
-const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+import { Player } from '@super-swash-bros/api';
 
 const isDefined = <T>(value: T | undefined | null): value is T =>
   value !== undefined && value !== null;
+
+const configuration = {
+  iceServers: [
+    {
+      urls: 'stun:stun.l.google.com:19302',
+    },
+  ],
+};
 
 class Lobby extends Scene {
   sessionId?: string;
   players: (Player | null)[] = [];
   hostText: Phaser.GameObjects.Text;
+  playBtn?: Phaser.GameObjects.Image;
   slots: Phaser.GameObjects.Text[];
   socket?: LinkCable;
   rtc?: RTCPeerConnection;
   cable?: RTCDataChannel;
+  keys?: Record<string, unknown>;
   constructor() {
     super('Lobby');
   }
@@ -112,7 +120,17 @@ class Lobby extends Scene {
     play.on('pointerdown', () => {
       if (this.socket && this.players.length > 0) {
         this.handshake();
+        play.disableInteractive().setVisible(false);
       }
+      this.keys = this.input.keyboard.addKeys({
+        up: 'W',
+        left: 'A',
+        down: 'S',
+        right: 'D',
+        punch: 'SPACE',
+        pickup: 'E',
+        drop: 'Q',
+      }) as Record<string, unknown>;
       // this.scene.manager.switch(this.scene.key, 'World');
     });
     this.playBtn = play;
@@ -137,14 +155,30 @@ class Lobby extends Scene {
     offer?: RTCSessionDescriptionInit,
     queuedIceCandidates?: RTCIceCandidate[]
   ) {
-    const cable = this.rtc.createDataChannel('playerData');
-    cable.onopen = () => {
-      console.log('cable connected');
-    };
-    cable.onmessage = (event) => {
-      console.log('cable message', event.data);
-    };
-    this.cable = cable;
+    if (!isDefined(this.cable)) {
+      const cable = this.rtc.createDataChannel('playerData', {
+        ordered: false,
+      });
+      cable.onopen = () => {
+        console.log('cable connected');
+        this.rtc.getStats().then((stats) => {
+          stats.forEach((report) => {
+            if (
+              report.type === 'local-candidate' ||
+              report.type === 'remote-candidate'
+            ) {
+              console.log(report);
+            }
+          });
+        });
+      };
+      cable.onmessage = (event) => {
+        console.log('cable message', event.data);
+      };
+      cable.onerror = (event) => console.error('error', event);
+      cable.onclose = () => console.log('cable closed');
+      this.cable = cable;
+    }
     if (!isDefined(offer)) {
       this.rtc.createOffer().then((offer) => {
         this.rtc.setLocalDescription(offer);
@@ -161,7 +195,9 @@ class Lobby extends Scene {
         }
         //regardless of how a remote description is set (via offer or answer) we need to add any queued ice candidates
         if (isDefined(queuedIceCandidates)) {
-          for (const candidate of queuedIceCandidates) {
+          while (queuedIceCandidates.length > 0) {
+            const candidate = queuedIceCandidates.shift();
+            console.log('adding', candidate.usernameFragment);
             this.rtc.addIceCandidate(candidate);
           }
         }
@@ -179,14 +215,18 @@ class Lobby extends Scene {
         }
         this.hostText.setText(msg.code);
         this.players = msg.players;
-        this.rtc = new RTCPeerConnection();
+        this.rtc = new RTCPeerConnection(configuration);
         this.rtc.onicecandidate = (event) => {
           if (isDefined(event.candidate)) {
+            console.log('generated', event.candidate.usernameFragment);
             this.socket.emit({
               cmd: 'ice',
               candidate: event.candidate,
             });
           }
+        };
+        this.rtc.oniceconnectionstatechange = (event) => {
+          console.log('ICE connection state is', this.rtc.iceConnectionState);
         };
       })
       .on('player', (msg) => {
@@ -215,8 +255,10 @@ class Lobby extends Scene {
       .on('ice', (msg) => {
         if (isDefined(msg.candidate)) {
           if (isDefined(this.rtc.remoteDescription)) {
+            console.log('adding', msg.candidate.usernameFragment);
             this.rtc.addIceCandidate(new RTCIceCandidate(msg.candidate));
           } else {
+            console.log('queuing', msg.candidate.usernameFragment);
             queuedIceCandidates.push(new RTCIceCandidate(msg.candidate));
           }
         }
@@ -233,6 +275,26 @@ class Lobby extends Scene {
         slot.setText(`${this.players[index]?.c ?? 'NONE'}`);
       }
     });
+
+    if (isDefined(this.cable) && this.cable.readyState === 'open') {
+      if (isDefined(this.keys)) {
+        const {
+          left: { isDown: left },
+          right: { isDown: right },
+          up: { isDown: up },
+          down: { isDown: down },
+          punch,
+          pickup,
+          drop,
+        } = this.keys;
+        if (left || right || up || down) {
+          console.log('sending', { left, right, up, down });
+          this.cable.send(
+            JSON.stringify({ [this.sessionId]: { left, right, up, down } })
+          );
+        }
+      }
+    }
   }
 }
 
