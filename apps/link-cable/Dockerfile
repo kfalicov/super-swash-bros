@@ -83,5 +83,6 @@ COPY --from=build /bin/server /bin/
 EXPOSE 8080
 EXPOSE 12345
 
+ENV BIND_ADDRESS=0.0.0.0
 # What the container should run when it is started.
 CMD ["/bin/server"]

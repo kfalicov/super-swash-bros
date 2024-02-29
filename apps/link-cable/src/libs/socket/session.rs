@@ -1,25 +1,16 @@
 //! `PlayerSession` is an actor, it manages peer tcp connection and
 //! proxies commands from peer to `RoomServer`.
 
-use std::{
-    str,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use actix::prelude::*;
 use actix_web_actors::ws;
 use serde::{Deserialize, Serialize};
 use serde_json;
 
-use crate::libs::socket::{
-    requests::{Join, Request},
-    responses::RoomInfo,
-};
+use crate::libs::socket::requests::Request;
 
-use super::{
-    requests,
-    server::{self, RoomServer},
-};
+use super::server::{self, RoomServer};
 use super::{
     responses::{self, Player},
     server::ToRoom,
@@ -114,7 +105,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PlayerSession {
                             });
                         }
                         Request::Create(_) => {
-                            if let Some(room) = &self.room {
+                            if let Some(_room) = &self.room {
                                 //TODO request existing room info from server
                             } else {
                                 self.hub.do_send(server::CreateRoom {

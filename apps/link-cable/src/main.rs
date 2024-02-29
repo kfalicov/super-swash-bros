@@ -1,7 +1,7 @@
+use std::env;
+
 use actix::prelude::*;
 use actix::Actor;
-use actix_cors::Cors;
-use actix_web::http::header;
 use actix_web::middleware::Logger;
 use actix_web::{web, App, Error, HttpRequest, HttpServer, Responder};
 use actix_web_actors::ws;
@@ -25,31 +25,21 @@ async fn socket_route(
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let rust_log = std::env::var("RUST_LOG").unwrap_or_else(|_| String::from("debug"));
-    println!("RUST_LOG={}", rust_log);
     env_logger::init_from_env(env_logger::Env::new().default_filter_or(rust_log));
 
+    let bind_address = env::var("BIND_ADDRESS").unwrap_or_else(|_| String::from("localhost"));
+    log::info!("Binding to address: {}:8080", bind_address);
     // start room server actor
     let server = server::RoomServer::default().start();
 
     let api_server = {
         let server = server.clone();
         HttpServer::new(move || {
-            // TODO change allowed origin to known FE domain
-            let cors = Cors::default()
-                .allowed_origin("http://localhost:4200")
-                .allowed_methods(vec!["GET", "POST", "OPTIONS"])
-                .allowed_headers(vec![
-                    header::AUTHORIZATION,
-                    header::ACCEPT,
-                    header::CONTENT_TYPE,
-                ]);
-
             App::new()
                 .app_data(web::Data::new(server.clone()))
-                .wrap(cors)
                 .service(actix_web::web::scope("/rooms").configure(api::rooms))
         })
-        .bind(("localhost", 8080))?
+        .bind((bind_address.to_owned(), 8080))?
         .run()
     };
 
@@ -57,15 +47,12 @@ async fn main() -> std::io::Result<()> {
     let ws_server = {
         let server = server.clone();
         HttpServer::new(move || {
-            // TODO change allowed origin to known FE domain
-            let cors = Cors::default().allowed_origin("http://localhost:4200");
             App::new()
                 .app_data(web::Data::new(server.clone()))
-                .wrap(cors)
                 .route("/{code:.*}", web::get().to(socket_route)) // WebSocket route
                 .wrap(Logger::default())
         })
-        .bind(("localhost", 12345))?
+        .bind((bind_address, 12345))?
         .run()
     };
 

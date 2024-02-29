@@ -6,7 +6,16 @@ class Pirate extends GameObjects.GameObject {
   squash: Phaser.Tweens.Tween;
   stack: Phaser.GameObjects.Group;
   interruptable = true;
+  /**
+   * disables movement and inputs from affecting the physics body.
+   */
   paused = false;
+  /**
+   * whether this player can interact with the environment
+   */
+  canInteract = true;
+  /**whether the player can punch. false when punch animation is occurring*/
+  canPunch = true;
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, 'pirate');
     const shadow = scene.physics.add.image(x, y, 'shadow');

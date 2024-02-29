@@ -6,6 +6,9 @@ name: Deploy to Amazon ECR
 on:
   push:
     branches: ['prod']
+    paths:
+      - 'apps/link-cable/**'
+  workflow_dispatch:
 
 env:
   AWS_REGION: us-east-1

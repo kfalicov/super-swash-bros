@@ -9,6 +9,8 @@ class World extends Scene {
   pirates: Pirate[] = [];
   sessionId?: string;
   ctrlIndex: number = 0;
+  interactionHitboxes: Phaser.Physics.Arcade.StaticGroup;
+  pickuppables: Phaser.Physics.Arcade.Group;
   //TODO type keys
   keys: any;
 
@@ -99,7 +101,7 @@ class World extends Scene {
       wheel,
       () => {
         console.log('wheel interacted');
-        this.player.setPaused(true);
+        this.pirates[this.ctrlIndex].setPaused(true);
         this.scene.run('Sailing');
       },
       () => !this.scene.isActive('Sailing')

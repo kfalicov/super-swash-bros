@@ -275,7 +275,7 @@ class Lobby extends Scene {
           }
         }
       })
-      .connect(`ws://127.0.0.1:12345`)
+      .connect(`ws://localhost:12345`)
       .then((socket) => {
         this.socket = socket;
         return socket;
