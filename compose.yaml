@@ -12,6 +12,7 @@ services:
     build:
       context: ./apps/link-cable
       target: final
+    image: ${IMAGE_NAME:-default_server_image_name}
     ports:
       - 8080:8080
       - 12345:12345
