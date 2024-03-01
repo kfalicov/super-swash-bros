@@ -14,6 +14,7 @@ env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: images
   EKS_DEPLOYMENT_NAME: swash-be
+  EKS_CLUSTER: swash-cluster
 
 permissions:
   contents: read
@@ -63,8 +64,10 @@ jobs:
           curl -o kubectl https://s3.us-west-2.amazonaws.com/amazon-eks/1.29.0/2024-01-04/bin/linux/amd64/kubectl
           chmod +x ./kubectl
           mkdir -p $HOME/bin && cp ./kubectl $HOME/bin/kubectl && export PATH=$PATH:$HOME/bin
-          echo "${{ secrets.KUBECONFIG }}" | base64 --decode > kubeconfig
-          echo "KUBECONFIG=$(pwd)/kubeconfig" >> $GITHUB_ENV
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER }} --role-arn ${{ secrets.AWS_EKS_CLUSTER_ROLE_ARN }}
 
       - name: Deploy to EKS
         run: |
