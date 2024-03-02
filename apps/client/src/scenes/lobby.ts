@@ -2,6 +2,7 @@ import { Scene } from 'phaser';
 import { LinkCable } from '../objects/socket';
 import { Player } from '@super-swash-bros/api';
 import { isDefined } from '../lib/is';
+import World from './worldgen';
 
 const configuration = {
   iceServers: [
@@ -165,7 +166,7 @@ class Lobby extends Scene {
       }
     };
 
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve) => {
       this.rtc.createOffer().then((offer) => {
         this.rtc.setLocalDescription(offer);
         this.socket?.emit({ cmd: 'offer', offer });
@@ -201,7 +202,7 @@ class Lobby extends Scene {
           this.rtc.ondatachannel = (event) => {
             const dataChannel = event.channel;
 
-            dataChannel.onopen = (event) => {
+            dataChannel.onopen = () => {
               console.log('cable connected - callee');
             };
             this.cable = dataChannel;
@@ -224,7 +225,7 @@ class Lobby extends Scene {
 
   createWorld() {
     this.scene.manager.switch(this.scene.key, 'World');
-    const world = this.scene.manager.getScene('World');
+    const world = this.scene.manager.getScene('World') as World;
     world.rtc = this.rtc;
     world.cable = this.cable;
     world.initPlayers(this.sessionId, this.players);

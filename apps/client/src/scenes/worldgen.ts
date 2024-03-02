@@ -12,7 +12,8 @@ class World extends Scene {
   interactionHitboxes: Phaser.Physics.Arcade.StaticGroup;
   pickuppables: Phaser.Physics.Arcade.Group;
   //TODO type keys
-  keys: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  keys: Record<string, any>;
 
   constructor() {
     super('World');
@@ -55,7 +56,13 @@ class World extends Scene {
     this.physics.add.collider(
       this.pickuppables,
       this.pickuppables,
-      ({ body: a }, { body: b }) => {
+      (pickupA, pickupB) => {
+        const a = (
+          pickupA as Phaser.Types.Physics.Arcade.GameObjectWithDynamicBody
+        ).body;
+        const b = (
+          pickupB as Phaser.Types.Physics.Arcade.GameObjectWithDynamicBody
+        ).body;
         const maxX = a.halfWidth + b.halfWidth;
         const maxY = a.halfHeight + b.halfHeight;
         const distX = Math.abs(Math.round(a.center.x - b.center.x)) || 1;
@@ -82,6 +89,7 @@ class World extends Scene {
       this.interactionHitboxes,
       this.pickuppables,
       (a, b) => {
+        //@ts-expect-error a.owner is assigned when the hitbox is created
         const player = a.owner;
 
         //should let the animation play in its entirety
@@ -89,8 +97,12 @@ class World extends Scene {
         player.sprite.play('player_pickup');
         player.squash.restart();
 
-        b.body.checkCollision.none = true;
-        b.body.setGravity(0);
+        (
+          b as Phaser.Types.Physics.Arcade.GameObjectWithBody
+        ).body.checkCollision.none = true;
+        (
+          b as Phaser.Types.Physics.Arcade.GameObjectWithDynamicBody
+        ).body.setGravity(0);
         player.stack.add(b);
       }
     );
@@ -116,9 +128,6 @@ class World extends Scene {
             right: { isDown: right },
             up: { isDown: up },
             down: { isDown: down },
-            punch,
-            pickup,
-            drop,
           } = this.keys;
           const buffer = new Uint8Array(2);
           buffer[0] = this.ctrlIndex;
