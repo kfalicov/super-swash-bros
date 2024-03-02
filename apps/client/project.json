@@ -18,7 +18,6 @@
         "webpackConfig": "apps/client/webpack.config.js",
         "assets": ["apps/client/src/favicon.ico", "apps/client/src/assets"],
         "index": "apps/client/src/index.html",
-        "baseHref": "/",
         "styles": ["apps/client/src/styles.css"],
         "scripts": []
       },
