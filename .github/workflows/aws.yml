@@ -68,7 +68,7 @@ jobs:
             docker compose build
             docker push $IMAGE_NAME
           fi
-          echo "::set-output name=image_name::$IMAGE_NAME"
+          echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
 
       - name: Install and configure kubectl
         run: |
