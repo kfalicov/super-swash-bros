@@ -1,3 +1,4 @@
+import { api } from '@super-swash-bros/api';
 import { Scene, Math as PhaserMath } from 'phaser';
 
 const SCROLL_ORIGINAL_VISIBLE_HEIGHT = 9;
@@ -84,6 +85,10 @@ class Menu extends Scene {
       ship.stop();
       ship.setFrame(15);
     });
+    playButton.on('pointerdown', () => {
+      this.scene.manager.switch(this.scene.key, 'Lobby');
+      this.input.manager.canvas.style.cursor = 'default';
+    });
 
     optionsButton.setInteractive({
       hitArea: buttonArea,
@@ -97,10 +102,8 @@ class Menu extends Scene {
       wheel.stop();
       wheel.setFrame(0);
     });
-
-    playButton.on('pointerdown', () => {
-      this.scene.manager.switch(this.scene.key, 'Lobby');
-      this.input.manager.canvas.style.cursor = 'default';
+    optionsButton.on('pointerdown', () => {
+      api.rooms.dummy();
     });
 
     // if (this.physics.world) {

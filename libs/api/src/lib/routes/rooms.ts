@@ -16,13 +16,12 @@ export const rooms = c.router({
     }),
     summary: 'Announce to all rooms',
   },
-  join: {
+  dummy: {
     method: 'GET',
-    path: `/rooms/:id`,
-    pathParams: z.object({ id: z.string() }),
+    path: '/rooms/dummy',
     responses: {
-      200: c.type<string | null>(),
+      200: c.type<void>(),
     },
-    summary: 'join a room by id',
+    summary: 'Dummy endpoint to check api pathing',
   },
 });
