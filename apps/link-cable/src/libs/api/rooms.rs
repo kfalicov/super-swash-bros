@@ -1,5 +1,5 @@
 use actix::Addr;
-use actix_web::{post, web, HttpResponse, Responder};
+use actix_web::{get, post, web, HttpResponse, Responder};
 use serde::Deserialize;
 
 use crate::libs::socket::server;
@@ -8,6 +8,11 @@ use crate::libs::socket::server;
 #[derive(Deserialize)]
 pub struct Announcement {
     message: String,
+}
+
+#[get("")]
+async fn get_rooms(srv: web::Data<Addr<server::RoomServer>>) -> impl Responder {
+    HttpResponse::Ok().body("rooms response")
 }
 
 #[post("/announce")]
@@ -22,5 +27,5 @@ async fn announce(
 }
 
 pub fn api(cfg: &mut web::ServiceConfig) {
-    cfg.service(announce);
+    cfg.service(get_rooms).service(announce);
 }

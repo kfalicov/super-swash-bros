@@ -3,6 +3,7 @@ use std::env;
 use actix::prelude::*;
 use actix::Actor;
 use actix_web::middleware::Logger;
+use actix_web::HttpResponse;
 use actix_web::{web, App, Error, HttpRequest, HttpServer, Responder};
 use actix_web_actors::ws;
 
@@ -22,6 +23,15 @@ async fn socket_route(
     ws::start(PlayerSession::new(srv.get_ref().clone()), &req, stream)
 }
 
+async fn default_service(req: HttpRequest) -> impl Responder {
+    println!(
+        "Received a request to an unknown route: {} {}",
+        req.method(),
+        req.path()
+    );
+    HttpResponse::NotFound().body("Route not found")
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let rust_log = std::env::var("RUST_LOG").unwrap_or_else(|_| String::from("debug"));
@@ -37,7 +47,9 @@ async fn main() -> std::io::Result<()> {
         HttpServer::new(move || {
             App::new()
                 .app_data(web::Data::new(server.clone()))
+                .service(actix_web::web::scope("/").configure(api::root))
                 .service(actix_web::web::scope("/rooms").configure(api::rooms))
+                .default_service(actix_web::web::route().to(default_service))
         })
         .bind((bind_address.to_owned(), 8080))?
         .run()

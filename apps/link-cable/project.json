@@ -39,7 +39,8 @@
       "executor": "@monodon/rust:run",
       "outputs": ["{options.target-dir}"],
       "options": {
-        "target-dir": "dist/target/lobbying"
+        "target-dir": "dist/target/lobbying",
+        "cwd": "apps/link-cable"
       },
       "configurations": {
         "production": {

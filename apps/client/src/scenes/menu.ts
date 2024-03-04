@@ -103,7 +103,8 @@ class Menu extends Scene {
       wheel.setFrame(0);
     });
     optionsButton.on('pointerdown', () => {
-      api.rooms.dummy();
+      // api.root.up();
+      api.rooms.get();
     });
 
     // if (this.physics.world) {

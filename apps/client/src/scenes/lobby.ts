@@ -1,6 +1,6 @@
 import { Scene } from 'phaser';
 import { LinkCable } from '../objects/socket';
-import { Player } from '@super-swash-bros/api';
+import { Player, api } from '@super-swash-bros/api';
 import { isDefined } from '../lib/is';
 import World from './worldgen';
 
@@ -51,14 +51,27 @@ class Lobby extends Scene {
         color: '#000000',
       })
       .setOrigin(0.5)
-      .setInteractive();
+      .setInteractive()
+      .setVisible(false);
     const join = this.add
       .text(140, 40, 'join', { color: '#000000' })
       .setOrigin(0.5)
-      .setInteractive();
+      .setInteractive()
+      .setVisible(false);
     join.on('pointerdown', () => {
       input.focus();
       go.setVisible(true);
+    });
+
+    /**
+     * ping the API to see if it is up. If it's up,
+     * show the server-related buttons (host, join)
+     */
+    api.root.up().then((res) => {
+      if (res.status === 200) {
+        host.setVisible(true);
+        join.setVisible(true);
+      }
     });
 
     go.on('pointerdown', () => {
@@ -69,7 +82,6 @@ class Lobby extends Scene {
       }
       join.setVisible(false).disableInteractive();
       go.setVisible(false).disableInteractive();
-      // api.rooms.join({ params: { id: input.value.toUpperCase() } });
     });
 
     host.once('pointerdown', () => {
@@ -158,7 +170,6 @@ class Lobby extends Scene {
     this.cable = cable;
     this.rtc.onicecandidate = (event) => {
       if (isDefined(event.candidate)) {
-        console.log('generated', event.candidate.usernameFragment);
         this.socket.emit({
           cmd: 'ice',
           candidate: event.candidate,
