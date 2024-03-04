@@ -1,7 +1,7 @@
 import { Scene } from 'phaser';
 import { LinkCable } from '../objects/socket';
 import { Player, api } from '@super-swash-bros/api';
-import { isDefined } from '../lib/is';
+import { isDefined } from '@super-swash-bros/utils';
 import World from './worldgen';
 
 const configuration = {

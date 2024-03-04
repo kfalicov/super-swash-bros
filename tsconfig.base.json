@@ -16,7 +16,8 @@
     "baseUrl": ".",
     "paths": {
       "@super-swash-bros/api": ["libs/api/src/index.ts"],
-      "@super-swash-bros/shared": ["apps/link-cable/bindings/index.ts"]
+      "@super-swash-bros/shared": ["apps/link-cable/bindings/index.ts"],
+      "@super-swash-bros/utils": ["libs/utils/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

@@ -1,6 +1,6 @@
 import { Scene } from 'phaser';
 import Pirate from '../objects/player';
-import { isDefined } from '../lib/is';
+import { isDefined } from '@super-swash-bros/utils';
 import { Player } from '@super-swash-bros/api';
 
 class World extends Scene {
@@ -27,9 +27,11 @@ class World extends Scene {
       }
     }
     this.ctrlIndex = players.findIndex((p) => p?.id === sessionId);
-    this.cable.onmessage = (event) => {
-      this.decode(event.data);
-    };
+    if (isDefined(this.cable)) {
+      this.cable.onmessage = (event) => {
+        this.decode(event.data);
+      };
+    }
   }
   create() {
     this.cameras.main.setBackgroundColor('#08bb08');
@@ -121,6 +123,11 @@ class World extends Scene {
 
     /** handle multiplayer comms */
     const syncKeyboardState = () => {
+      if (
+        !isDefined(this.pirates[this.ctrlIndex]) ||
+        this.pirates[this.ctrlIndex].paused
+      )
+        return;
       if (isDefined(this.cable) && this.cable.readyState === 'open') {
         if (isDefined(this.keys)) {
           const {
@@ -166,6 +173,7 @@ class World extends Scene {
 
   update() {
     const pirate = this.pirates[this.ctrlIndex];
+    if (!isDefined(pirate)) return;
     const { left, right, up, down, punch, pickup, drop } = this.keys;
     let xacc = 0;
     let yacc = 0;

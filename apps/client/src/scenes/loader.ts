@@ -7,35 +7,35 @@ class Loader extends Scene {
   preload() {
     this.load.atlas(
       'player',
-      '/assets/entity/player.png',
-      '/assets/entity/player.json'
+      './assets/entity/player.png',
+      './assets/entity/player.json'
     );
-    this.load.image('box', '/assets/box.png');
-    this.load.image('shadow', '/assets/shadow.png');
+    this.load.image('box', './assets/box.png');
+    this.load.image('shadow', './assets/shadow.png');
 
-    this.load.spritesheet('scroll', '/assets/scroll.png', {
+    this.load.spritesheet('scroll', './assets/scroll.png', {
       frameWidth: 96,
       frameHeight: 32,
     });
 
-    this.load.image('parchment', '/assets/modal.png');
-    this.load.spritesheet('menu_ship', '/assets/menu ship.png', {
+    this.load.image('parchment', './assets/modal.png');
+    this.load.spritesheet('menu_ship', './assets/menu ship.png', {
       frameWidth: 48,
       frameHeight: 48,
     });
-    this.load.spritesheet('menu_wheel', '/assets/menu wheel.png', {
+    this.load.spritesheet('menu_wheel', './assets/menu wheel.png', {
       frameWidth: 48,
       frameHeight: 48,
     });
-    this.load.spritesheet('menu_items', '/assets/menu items.png', {
+    this.load.spritesheet('menu_items', './assets/menu items.png', {
       frameWidth: 48,
       frameHeight: 32,
     });
 
-    this.load.image('map', '/assets/pancake.png');
-    this.load.image('map_mask', '/assets/pancake mask.png');
-    this.load.image('wake', '/assets/trail.png');
-    this.load.spritesheet('tiny_ship', '/assets/tiny_boat.png', {
+    this.load.image('map', './assets/pancake.png');
+    this.load.image('map_mask', './assets/pancake mask.png');
+    this.load.image('wake', './assets/trail.png');
+    this.load.spritesheet('tiny_ship', './assets/tiny_boat.png', {
       frameWidth: 4,
       frameHeight: 12,
     });

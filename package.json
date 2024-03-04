@@ -8,16 +8,7 @@
   },
   "private": true,
   "dependencies": {
-    "@colyseus/core": "^0.15.22",
-    "@colyseus/monitor": "^0.15.0",
-    "@colyseus/playground": "^0.15.3",
-    "@colyseus/schema": "^2.0.26",
-    "@colyseus/tools": "^0.15.30",
-    "@swc/helpers": "~0.5.2",
     "@ts-rest/core": "3.33.0",
-    "axios": "^1.0.0",
-    "colyseus": "^0.15.15",
-    "colyseus.js": "0.15.16",
     "phaser": "^3.70.0",
     "tslib": "^2.3.0",
     "zod": "^3.22.4"
